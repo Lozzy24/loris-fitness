@@ -491,6 +491,13 @@ img{max-width:100%}
 /* utility */
 .mt{margin-top:14px}.mb{margin-bottom:14px}.flex{display:flex}.gap{gap:10px}.center{align-items:center}
 .confetti{position:fixed;width:10px;height:10px;z-index:101;pointer-events:none;top:-10px}
+/* press feedback (mobile premium) */
+.stat,.quest,.exo,.today,.ach{transition:transform .12s ease, border-color .2s, background .3s}
+.stat:active,.quest:active{transform:scale(.975)}
+.exo-h:active{background:rgba(255,255,255,.02)}
+.nav-i:active svg{transform:scale(.85)}
+.subtab:active,.chip:active,.fav-chip:active{transform:scale(.94)}
+@media (prefers-reduced-motion:reduce){*{animation-duration:.01ms!important;transition-duration:.01ms!important}}
 .fab-add{display:flex;align-items:center;justify-content:center;gap:6px}
 .small{font-size:11px;color:var(--muted)}
 </style>
@@ -787,7 +794,7 @@ img{max-width:100%}
         <button class="btn ghost block mb" onclick="App.exportData()">⬇️ Exporter mes données (JSON)</button>
         <button class="btn ghost block" onclick="App.resetData()" style="color:var(--red)">🗑️ Réinitialiser l'application</button>
       </div>
-      <p class="small mt">Loris Fitness Premium · v1.5 · reco surcharge progressive · planning & macros éditables · auto-deploy ✓.</p>
+      <p class="small mt">Loris Fitness Premium · v1.6 · animations count-up · retours haptiques · immersion premium · auto-deploy ✓.</p>
     </div>
   </div>
 
@@ -1323,6 +1330,7 @@ const App = {
     nav.innerHTML=items.map((it,i)=>`<button class="nav-i${i===0?' active':''}" data-page="${it.id}" onclick="App.go('${it.id}',this)"><svg viewBox="0 0 24 24"><path d="${it.ic}"/></svg>${it.l}</button>`).join('');
   },
   go(id,btn){
+    this.haptic(10);
     document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
     document.getElementById('p-'+id).classList.add('active');
     document.querySelectorAll('.nav-i').forEach(n=>n.classList.remove('active'));
@@ -1360,13 +1368,14 @@ const App = {
     const mins=Math.round(s.trainingSeconds/60);
     const fav=this.favExo();
     document.getElementById('dash-stats').innerHTML=[
-      {ic:'🏋️',v:s.workouts,l:'Séances',c:'acc'},
-      {ic:'✅',v:s.totalSets,l:'Séries validées',c:'grn'},
-      {ic:'⚖️',v:(s.totalTonnage/1000).toFixed(1)+'t',l:'Tonnage total',c:'org'},
-      {ic:'⏱️',v:mins+'min',l:'Temps total',c:'blu'},
-      {ic:'🔥',v:s.streak+'j',l:'Série en cours',c:'org'},
-      {ic:'⭐',v:fav,l:'Exo favori',c:'acc'},
-    ].map(x=>`<div class="stat"><div class="ico">${x.ic}</div><div class="v ${x.c}">${x.v}</div><div class="l">${x.l}</div></div>`).join('');
+      this.statCard({ic:'🏋️',num:s.workouts,l:'Séances',c:'acc'}),
+      this.statCard({ic:'✅',num:s.totalSets,l:'Séries validées',c:'grn'}),
+      this.statCard({ic:'⚖️',num:s.totalTonnage/1000,dec:1,suffix:'t',l:'Tonnage total',c:'org'}),
+      this.statCard({ic:'⏱️',num:mins,suffix:'min',l:'Temps total',c:'blu'}),
+      this.statCard({ic:'🔥',num:s.streak,suffix:'j',l:'Série en cours',c:'org'}),
+      this.statCard({ic:'⭐',text:fav,l:'Exo favori',c:'acc'}),
+    ].join('');
+    this.animateCounts(document.getElementById('dash-stats'));
     // PRs
     const prs=Object.entries(s.prs).slice(0,4);
     document.getElementById('dash-prs').innerHTML = prs.length? prs.map(([id,p])=>{
@@ -1379,6 +1388,15 @@ const App = {
     Object.entries(s.logs).forEach(([id,arr])=>{ if(arr.length>n){n=arr.length;best=EXO_INDEX[id]?EXO_INDEX[id].name.replace(/^\d+\.\s*/,'').split(' ').slice(0,2).join(' '):id;} });
     return best;
   },
+  /* ---------- UX helpers : haptique + count-up + carte stat ---------- */
+  haptic(ms){ try{ if(navigator.vibrate) navigator.vibrate(ms||14); }catch(e){} },
+  countUp(el,to,dec,suffix){
+    const start=performance.now(), dur=850;
+    const step=now=>{ const p=Math.min(1,(now-start)/dur); const e=1-Math.pow(1-p,3); const v=to*e; el.textContent=(dec?v.toFixed(dec):Math.round(v))+(suffix||''); if(p<1)requestAnimationFrame(step); };
+    requestAnimationFrame(step);
+  },
+  animateCounts(root){ (root||document).querySelectorAll('[data-num]').forEach(el=>{ this.countUp(el,+el.dataset.num||0,+el.dataset.dec||0,el.dataset.suffix||''); }); },
+  statCard(o){ const isNum=o.num!=null; return `<div class="stat">${o.ic?`<div class="ico">${o.ic}</div>`:''}<div class="v ${o.c||''}" ${isNum?`data-num="${o.num}" data-dec="${o.dec||0}" data-suffix="${o.suffix||''}"`:''}>${isNum?('0'+(o.suffix||'')):o.text}</div><div class="l">${o.l}</div></div>`; },
 
   /* ---------- DAILY COUNTERS + QUESTS ---------- */
   today(){ return new Date().toISOString().slice(0,10); },
@@ -1414,7 +1432,7 @@ const App = {
         if(done && !claimed){
           Store.set(st=>st.questClaims[period].ids.push(q.id));
           Gami.award(q.xp,'Quête : '+q.label);
-          if(!silent){ UI.toast('🎯','Quête accomplie !',q.label); if(period==='weekly')confetti(); }
+          if(!silent){ this.haptic(25); UI.toast('🎯','Quête accomplie !',q.label); if(period==='weekly')confetti(); }
         }
       });
     });
@@ -1821,7 +1839,7 @@ const App = {
     el.classList.toggle('on',now);el.closest('.srow').classList.toggle('checked',now);
     if(now){
       Store.set(s=>{s.totalSets++;});
-      this.bumpDaily('sets',1);
+      this.bumpDaily('sets',1); this.haptic(18);
       Gami.award(Gami.XP_SET,'Série validée');
       this.startRest(this.exo(exoId)?.maison?60:90, exoId);
       el.animate([{transform:'scale(.6)'},{transform:'scale(1.25)'},{transform:'scale(1)'}],{duration:350});
@@ -2022,6 +2040,7 @@ const App = {
       st.__checks={};
     });
     this.bumpDaily('workouts',1);
+    this.haptic(50);
     Gami.award(Gami.XP_WORKOUT,'🎉 Séance terminée !');
     this.evalQuests();
     confetti();
@@ -2179,7 +2198,7 @@ const App = {
   },
   renderNutrition(){
     const s=Store.get(); const t=this.nutTargets();
-    document.getElementById('cal-target').textContent=t.hasTarget?t.cal:'—';
+    const calEl=document.getElementById('cal-target'); if(t.hasTarget){ this.countUp(calEl,t.cal,0,''); } else { calEl.textContent='—'; }
     document.getElementById('cal-note').textContent=t.hasTarget?(s.nutriGoal==='maintien'?'Maintien de ton poids actuel.':s.nutriGoal==='leger'?'Surplus léger ~+300 kcal : prise de masse propre.':'Prise de masse ~+500 kcal : gain rapide, surveille le gras.'):'Renseigne ton profil dans Outils → Calculateurs pour un calcul personnalisé.';
     const meals=this.todayMeals(); const all=Object.values(meals).flat();
     const sum=k=>Math.round(all.reduce((a,m)=>a+(+m[k]||0),0));
