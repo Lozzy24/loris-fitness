@@ -1,0 +1,14 @@
+# Loris Fitness — config Netlify (site statique PWA, aucun build)
+[build]
+  publish = "."
+
+# En-têtes : pas de cache sur le service worker pour des MAJ rapides
+[[headers]]
+  for = "/sw.js"
+  [headers.values]
+    Cache-Control = "no-cache"
+
+[[headers]]
+  for = "/index.html"
+  [headers.values]
+    Cache-Control = "no-cache"
