@@ -263,6 +263,42 @@ img{max-width:100%}
 .add-exo-btn{width:100%;padding:14px;border-radius:14px;border:1px dashed var(--border2);background:var(--card);color:var(--muted);font-weight:700;font-size:13px;margin-top:4px}
 .add-exo-form{background:var(--card);border:1px solid var(--border2);border-radius:14px;padding:14px;margin-top:8px}
 
+/* QUESTS */
+.quest{display:flex;align-items:center;gap:12px;background:var(--card);border:1px solid var(--border);border-radius:14px;padding:12px 14px;margin-bottom:9px;position:relative;overflow:hidden;transition:.3s}
+.quest.done{border-color:rgba(61,220,132,.4);background:linear-gradient(120deg,rgba(61,220,132,.08),var(--card))}
+.quest .qic{width:40px;height:40px;border-radius:11px;background:var(--surface);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0}
+.quest.done .qic{background:rgba(61,220,132,.14)}
+.quest .qi{flex:1;min-width:0}
+.quest .qn{font-size:13px;font-weight:700;line-height:1.25}
+.quest .qbar{height:6px;background:var(--surface);border-radius:10px;overflow:hidden;margin-top:7px}
+.quest .qfill{height:100%;border-radius:10px;background:linear-gradient(90deg,var(--accent),var(--accent2));transition:width .6s cubic-bezier(.2,.8,.2,1)}
+.quest.done .qfill{background:var(--green)}
+.quest .qp{font-size:10.5px;color:var(--muted);margin-top:4px}
+.quest .qxp{flex-shrink:0;font-family:'Bebas Neue';font-size:18px;color:var(--accent);text-align:center;line-height:1}
+.quest.done .qxp{color:var(--green)}
+.quest .qxp small{display:block;font-size:8px;letter-spacing:1px;color:var(--muted)}
+
+/* TODAY CARD */
+.today{display:flex;align-items:center;gap:14px;border-radius:18px;padding:16px;background:radial-gradient(120% 120% at 100% 0%,rgba(232,255,60,.16),transparent 60%),linear-gradient(150deg,#191910,#101013);border:1px solid #2c2c1e}
+.today.rest{background:linear-gradient(150deg,#15151b,#0f0f12);border-color:var(--border)}
+.today .tdic{width:54px;height:54px;border-radius:15px;background:rgba(232,255,60,.12);display:flex;align-items:center;justify-content:center;font-size:28px;flex-shrink:0}
+.today.rest .tdic{background:var(--surface)}
+.today .tdi{flex:1;min-width:0}
+.today .tdl{font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--muted)}
+.today .tdn{font-family:'Bebas Neue';font-size:26px;letter-spacing:1px;line-height:1.05;margin-top:2px}
+.today .tds{font-size:11.5px;color:var(--muted);margin-top:3px}
+.today .btn{flex-shrink:0}
+
+/* FORECAST */
+.forecast{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:16px}
+.forecast .fc-top{display:flex;align-items:flex-end;gap:10px;margin-bottom:6px}
+.forecast .fc-big{font-family:'Bebas Neue';font-size:34px;color:var(--accent);line-height:.9}
+.forecast .fc-lbl{font-size:12px;color:var(--muted);padding-bottom:4px}
+.forecast .fc-track{height:8px;background:var(--surface);border-radius:10px;overflow:hidden;margin:10px 0 6px}
+.forecast .fc-fill{height:100%;background:linear-gradient(90deg,var(--accent),var(--accent2));border-radius:10px;transition:width 1s}
+.forecast .fc-note{font-size:11.5px;color:var(--muted);line-height:1.5}
+.forecast .fc-note b{color:var(--text)}
+
 /* FOOD SHEET (bottom modal) */
 .sheet-back{position:fixed;inset:0;z-index:95;background:rgba(0,0,0,.6);backdrop-filter:blur(6px);display:none;align-items:flex-end}
 .sheet-back.show{display:flex;animation:rise .25s}
@@ -498,11 +534,23 @@ img{max-width:100%}
       </div>
     </div>
 
+    <div class="section-label"><span class="dot"></span>Séance du jour<span class="lbl-line"></span></div>
+    <div id="today-card"></div>
+
+    <div class="section-label"><span class="dot orange"></span>Quêtes du jour<span class="lbl-line"></span></div>
+    <div id="quests-daily"></div>
+
+    <div class="section-label"><span class="dot blue"></span>Quêtes de la semaine<span class="lbl-line"></span></div>
+    <div id="quests-weekly"></div>
+
     <div class="section-label"><span class="dot"></span>Cette semaine<span class="lbl-line"></span></div>
     <div class="card pad"><div class="week" id="week-strip"></div></div>
 
     <div class="section-label"><span class="dot orange"></span>Tes stats<span class="lbl-line"></span></div>
     <div class="stat-grid" id="dash-stats"></div>
+
+    <div class="section-label"><span class="dot blue"></span>Prévision objectif<span class="lbl-line"></span></div>
+    <div id="forecast-card"></div>
 
     <div class="section-label"><span class="dot blue"></span>Visualiseur musculaire 3D<span class="lbl-line"></span></div>
     <div class="card pad">
@@ -725,7 +773,7 @@ img{max-width:100%}
         <button class="btn ghost block mb" onclick="App.exportData()">⬇️ Exporter mes données (JSON)</button>
         <button class="btn ghost block" onclick="App.resetData()" style="color:var(--red)">🗑️ Réinitialiser l'application</button>
       </div>
-      <p class="small mt">Loris Fitness Premium · v1.3 · schéma musculaire avant/arrière · scan + photo IA · auto-deploy ✓.</p>
+      <p class="small mt">Loris Fitness Premium · v1.4 · quêtes & séance du jour · prévision objectif · auto-deploy ✓.</p>
     </div>
   </div>
 
@@ -834,7 +882,10 @@ const Store = (() => {
     coachHistory:[],
     exoOverrides:{},  // exoId -> {name?,ic?,sets?,meta?,targetLoad?,status?,hidden?,swap?}
     customExos:{},    // groupId -> [exo objects]
-    foodFavorites:[]  // [{name,kcal,p,c,f}]
+    foodFavorites:[], // [{name,kcal,p,c,f}]
+    daily:{},         // dateISO -> {sets,workouts,volume,logs}
+    questClaims:{daily:{date:'',ids:[]},weekly:{week:'',ids:[]}}, // claimed quest ids per period
+    weekPlan:['pecs','rest','dos','rest','epaules','jambes','rest'] // Mon..Sun training plan (editable)
   };
   let state = load();
   function load(){ try{ return Object.assign(JSON.parse(JSON.stringify(def)), JSON.parse(localStorage.getItem(KEY))||{}); }catch(e){ return JSON.parse(JSON.stringify(def)); } }
@@ -1129,6 +1180,20 @@ const Gami = {
   tier(){ const s=Store.get(); const w=s.workouts; let t=TIERS[0]; TIERS.forEach(x=>{if(w>=x.min)t=x;}); return t; }
 };
 
+/* ---------- QUESTS (daily / weekly) ---------- */
+const QUESTS = {
+  daily:[
+    {id:'d_sets',ic:'✅',label:'Valide 12 séries',target:12,xp:40,prog:d=>d.sets||0},
+    {id:'d_work',ic:'🏋️',label:'Termine 1 séance',target:1,xp:60,prog:d=>d.workouts||0},
+    {id:'d_prot',ic:'🥩',label:'Atteins 80% de ta protéine',target:80,xp:40,unit:'%',prog:(d,ctx)=>ctx.proteinPct},
+  ],
+  weekly:[
+    {id:'w_work',ic:'📅',label:'3 séances cette semaine',target:3,xp:150,prog:(d,ctx)=>ctx.weekWorkouts},
+    {id:'w_vol',ic:'⚖️',label:'Soulève 5 t cette semaine',target:5,xp:150,unit:'t',prog:(d,ctx)=>+(ctx.weekVolume/1000).toFixed(1)},
+    {id:'w_logs',ic:'📊',label:'Log 6 performances',target:6,xp:120,prog:(d,ctx)=>ctx.weekLogs},
+  ]
+};
+
 /* ---------- COACH (local KB + OpenAI-ready) ---------- */
 const Coach = {
   kb:[
@@ -1221,6 +1286,8 @@ const App = {
     this.loadProfileInputs();
     UI.refreshHeader();
     this.updateStreak();
+    this.evalQuests(true);
+    this.renderQuests();
     this.registerPWA();
     document.getElementById('greet').textContent=this.greet();
   },
@@ -1289,11 +1356,107 @@ const App = {
     document.getElementById('dash-prs').innerHTML = prs.length? prs.map(([id,p])=>{
       const e=EXO_INDEX[id]; return `<div class="exo"><div class="exo-h" style="cursor:default"><div class="exo-ic salle">🏆</div><div class="exo-i"><div class="exo-n">${e?e.name.replace(/^\d+\.\s*/,''):id}</div><div class="exo-m">Record : <b style="color:var(--gold)">${p.weight} kg × ${p.reps}</b></div></div></div></div>`;
     }).join('') : `<div class="empty"><div class="e">🏆</div>Aucun record encore. Log tes premières séries dans Training !</div>`;
+    this.renderToday(); this.renderQuests(); this.renderForecast();
   },
   favExo(){
     const s=Store.get(); let best='—',n=0;
     Object.entries(s.logs).forEach(([id,arr])=>{ if(arr.length>n){n=arr.length;best=EXO_INDEX[id]?EXO_INDEX[id].name.replace(/^\d+\.\s*/,'').split(' ').slice(0,2).join(' '):id;} });
     return best;
+  },
+
+  /* ---------- DAILY COUNTERS + QUESTS ---------- */
+  today(){ return new Date().toISOString().slice(0,10); },
+  weekId(){ const d=new Date(); const o=(d.getDay()+6)%7; const m=new Date(d); m.setDate(d.getDate()-o); return m.toISOString().slice(0,10); },
+  bumpDaily(field,delta){
+    const date=this.today();
+    Store.set(s=>{ s.daily[date]=s.daily[date]||{sets:0,workouts:0,volume:0,logs:0}; s.daily[date][field]=Math.max(0,(s.daily[date][field]||0)+delta); });
+  },
+  questCtx(){
+    const s=Store.get(); const d=s.daily[this.today()]||{};
+    // protein %
+    const t=this.nutTargets(); const meals=this.todayMeals(); const cP=Object.values(meals).flat().reduce((a,m)=>a+(+m.p||0),0);
+    const proteinPct=t.prot?Math.min(100,Math.round(cP/t.prot*100)):0;
+    // week aggregates
+    const wk=this.weekKeys(); let weekVolume=0,weekLogs=0;
+    wk.forEach(k=>{ const r=s.daily[k]; if(r){ weekVolume+=r.volume||0; weekLogs+=r.logs||0; } });
+    const weekWorkouts=wk.filter(k=>s.weekDone[k]).length;
+    return {d, proteinPct, weekVolume, weekLogs, weekWorkouts};
+  },
+  ensureQuestPeriods(){
+    Store.set(s=>{
+      if(s.questClaims.daily.date!==this.today()){ s.questClaims.daily={date:this.today(),ids:[]}; }
+      if(s.questClaims.weekly.week!==this.weekId()){ s.questClaims.weekly={week:this.weekId(),ids:[]}; }
+    });
+  },
+  evalQuests(silent){
+    this.ensureQuestPeriods();
+    const ctx=this.questCtx(); const s=Store.get();
+    [['daily',QUESTS.daily],['weekly',QUESTS.weekly]].forEach(([period,list])=>{
+      list.forEach(q=>{
+        const val=q.prog(ctx.d,ctx); const done=val>=q.target;
+        const claimed=s.questClaims[period].ids.includes(q.id);
+        if(done && !claimed){
+          Store.set(st=>st.questClaims[period].ids.push(q.id));
+          Gami.award(q.xp,'Quête : '+q.label);
+          if(!silent){ UI.toast('🎯','Quête accomplie !',q.label); if(period==='weekly')confetti(); }
+        }
+      });
+    });
+  },
+  questCardHTML(q,period,ctx){
+    const val=q.prog(ctx.d,ctx); const pct=Math.min(100,Math.round(val/q.target*100)); const done=val>=q.target;
+    return `<div class="quest ${done?'done':''}"><div class="qic">${done?'✓':q.ic}</div>
+      <div class="qi"><div class="qn">${q.label}</div><div class="qbar"><div class="qfill" style="width:${pct}%"></div></div>
+      <div class="qp">${(q.unit==='%'||q.unit==='t')?val:Math.round(val)}${q.unit||''} / ${q.target}${q.unit||''}</div></div>
+      <div class="qxp">${q.xp}<small>XP</small></div></div>`;
+  },
+  renderQuests(){
+    this.ensureQuestPeriods(); const ctx=this.questCtx();
+    const dEl=document.getElementById('quests-daily'), wEl=document.getElementById('quests-weekly');
+    if(dEl) dEl.innerHTML=QUESTS.daily.map(q=>this.questCardHTML(q,'daily',ctx)).join('');
+    if(wEl) wEl.innerHTML=QUESTS.weekly.map(q=>this.questCardHTML(q,'weekly',ctx)).join('');
+  },
+
+  /* ---------- SÉANCE DU JOUR ---------- */
+  todayGroupId(){ const s=Store.get(); const i=(new Date().getDay()+6)%7; return (s.weekPlan&&s.weekPlan[i])||'rest'; },
+  renderToday(){
+    const el=document.getElementById('today-card'); if(!el)return;
+    const gid=this.todayGroupId(); const s=Store.get(); const doneToday=!!s.weekDone[this.today()];
+    if(gid==='rest'){
+      el.innerHTML=`<div class="today rest"><div class="tdic">😴</div><div class="tdi"><div class="tdl">Aujourd'hui</div><div class="tdn">REPOS</div><div class="tds">Récupération = croissance musculaire. Soigne ton sommeil et tes protéines.</div></div></div>`;
+      return;
+    }
+    const g=this.groupBase(gid); if(!g){el.innerHTML='';return;}
+    el.innerHTML=`<div class="today"><div class="tdic">${g.emoji}</div><div class="tdi"><div class="tdl">Séance du jour</div><div class="tdn">${g.title}</div><div class="tds">${doneToday?'✓ Séance validée — bravo !':g.exos.length+' exercices • prêt à attaquer'}</div></div>${doneToday?'':`<button class="btn" onclick="App.startToday('${gid}')">Démarrer</button>`}</div>`;
+  },
+  startToday(gid){
+    this.curGroup=gid;
+    document.querySelector('.nav-i[data-page="train"]').click();
+    setTimeout(()=>{ document.querySelectorAll('.subtab').forEach(t=>t.classList.toggle('active',t.dataset.g===gid)); this.renderTraining(); },60);
+  },
+
+  /* ---------- PRÉVISION OBJECTIF ---------- */
+  renderForecast(){
+    const el=document.getElementById('forecast-card'); if(!el)return;
+    const s=Store.get(); const m=s.measures;
+    const cur=(m.length?m[m.length-1].weight:s.profile.curWeight); const goal=s.profile.goalWeight;
+    const remaining=goal-cur;
+    let etaTxt='Ajoute des mesures de poids pour estimer ta date d\'objectif.';
+    let rate=null;
+    if(m.length>=2){
+      const first=m[0], last=m[m.length-1];
+      const days=Math.max(1,(new Date(last.date)-new Date(first.date))/86400000);
+      rate=(last.weight-first.weight)/days; // kg/day
+    }
+    if(rate&&rate>0.001&&remaining>0){
+      const days=Math.ceil(remaining/rate); const eta=new Date(Date.now()+days*86400000);
+      etaTxt=`À ton rythme (~<b>${(rate*7).toFixed(2)} kg/sem</b>), objectif atteint vers <b>${eta.toLocaleDateString('fr-FR',{month:'long',year:'numeric'})}</b> (~${Math.round(days/7)} sem).`;
+    } else if(remaining<=0){ etaTxt='🎉 Objectif de poids atteint ! Pense à réévaluer ta cible.'; }
+    else if(rate!==null&&rate<=0.001){ etaTxt='Ton poids stagne ou baisse. Augmente ton surplus calorique (+200 kcal) pour relancer la prise de masse.'; }
+    const pct=Math.max(0,Math.min(100,((cur-70)/((goal-70)||1))*100));
+    el.innerHTML=`<div class="forecast"><div class="fc-top"><div class="fc-big">${cur.toFixed(1)}<span style="font-size:16px"> kg</span></div><div class="fc-lbl">→ ${goal} kg objectif</div></div>
+      <div class="fc-track"><div class="fc-fill" style="width:${pct}%"></div></div>
+      <div class="fc-note">${etaTxt}</div></div>`;
   },
 
   /* ---------- 3D BODY (Three.js) ---------- */
@@ -1625,12 +1788,15 @@ const App = {
     el.classList.toggle('on',now);el.closest('.srow').classList.toggle('checked',now);
     if(now){
       Store.set(s=>{s.totalSets++;});
+      this.bumpDaily('sets',1);
       Gami.award(Gami.XP_SET,'Série validée');
       this.startRest(this.exo(exoId)?.maison?60:90, exoId);
       el.animate([{transform:'scale(.6)'},{transform:'scale(1.25)'},{transform:'scale(1)'}],{duration:350});
     } else {
       Store.set(s=>{ if(s.totalSets>0) s.totalSets--; });
+      this.bumpDaily('sets',-1);
     }
+    this.evalQuests();
     // refresh meta count
     this.refreshExoMeta(exoId);
     this.updateFinishBar();
@@ -1664,6 +1830,7 @@ const App = {
       if(!cur||w>cur.weight||(w===cur.weight&&r>cur.reps)){ s.prs[exoId]={weight:w,reps:r,date}; s.__newPR=true; }
     });
     if(Store.get().__newPR){ Store.set(s=>s.__newPR=false); Gami.award(Gami.XP_PR,'🏆 Nouveau record !'); UI.toast('🏆','Record battu !',(this.exo(exoId)?.name||'').replace(/^\d+\.\s*/,'')); }
+    this.bumpDaily('volume', w*r*sets); this.bumpDaily('logs',1); this.evalQuests();
     Gami.checkAchievements();
     this.refreshExoCard(exoId,'log');
     this.updateFinishBar();
@@ -1821,7 +1988,9 @@ const App = {
       }
       st.__checks={};
     });
+    this.bumpDaily('workouts',1);
     Gami.award(Gami.XP_WORKOUT,'🎉 Séance terminée !');
+    this.evalQuests();
     confetti();
     // celebration
     document.getElementById('cel-title').textContent='SÉANCE TERMINÉE';
