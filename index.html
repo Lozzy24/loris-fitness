@@ -794,11 +794,35 @@ img{max-width:100%}
         <button class="btn ghost block mb" onclick="App.exportData()">⬇️ Exporter mes données (JSON)</button>
         <button class="btn ghost block" onclick="App.resetData()" style="color:var(--red)">🗑️ Réinitialiser l'application</button>
       </div>
-      <p class="small mt">Loris Fitness Premium · v1.6 · animations count-up · retours haptiques · immersion premium · auto-deploy ✓.</p>
+      <p class="small mt">Loris Fitness Premium · v1.7 · onboarding profil guidé · immersion premium · auto-deploy ✓.</p>
     </div>
   </div>
 
 </div><!-- /#app -->
+
+<!-- ONBOARDING -->
+<div id="onboard" class="sheet-back" style="align-items:center">
+  <div class="sheet" style="border-radius:24px;max-width:440px;margin:16px">
+    <div style="text-align:center;margin-bottom:14px">
+      <div style="font-size:40px">💪</div>
+      <div class="bebas" style="font-size:30px;letter-spacing:2px">BIENVENUE</div>
+      <div class="small">Configure ton profil pour des calculs personnalisés (calories, macros, objectif).</div>
+    </div>
+    <div class="field"><label>Prénom</label><input class="input" id="ob-name" placeholder="Ton prénom"></div>
+    <div class="row2">
+      <div class="field"><label>Sexe</label><div class="seg" id="ob-sex"><button data-s="h" class="active" onclick="App.obSex(this)">Homme</button><button data-s="f" onclick="App.obSex(this)">Femme</button></div></div>
+      <div class="field"><label>Âge</label><input class="input" id="ob-age" type="number" inputmode="numeric" placeholder="22"></div>
+      <div class="field"><label>Taille (cm)</label><input class="input" id="ob-height" type="number" inputmode="numeric" placeholder="178"></div>
+      <div class="field"><label>Niveau d'activité</label>
+        <select class="input" id="ob-activity"><option value="1.2">Sédentaire</option><option value="1.375">Léger</option><option value="1.55" selected>Modéré</option><option value="1.725">Intense</option><option value="1.9">Très intense</option></select>
+      </div>
+      <div class="field"><label>Poids actuel (kg)</label><input class="input" id="ob-cur" type="number" inputmode="decimal" placeholder="70"></div>
+      <div class="field"><label>Objectif (kg)</label><input class="input" id="ob-goal" type="number" inputmode="decimal" placeholder="81"></div>
+    </div>
+    <button class="btn block" onclick="App.saveOnboarding()">C'est parti 🚀</button>
+    <button class="btn ghost block mt" onclick="App.skipOnboarding()">Passer pour l'instant</button>
+  </div>
+</div>
 
 <!-- FOOD SHEET -->
 <div id="foodSheet" class="sheet-back">
@@ -907,7 +931,8 @@ const Store = (() => {
     daily:{},         // dateISO -> {sets,workouts,volume,logs}
     questClaims:{daily:{date:'',ids:[]},weekly:{week:'',ids:[]}}, // claimed quest ids per period
     weekPlan:['pecs','rest','dos','rest','epaules','jambes','rest'], // Mon..Sun training plan (editable)
-    macroOverride:{prot:2.0,lip:1.0} // g/kg targets (editable)
+    macroOverride:{prot:2.0,lip:1.0}, // g/kg targets (editable)
+    onboarded:false
   };
   let state = load();
   function load(){ try{ return Object.assign(JSON.parse(JSON.stringify(def)), JSON.parse(localStorage.getItem(KEY))||{}); }catch(e){ return JSON.parse(JSON.stringify(def)); } }
@@ -1312,6 +1337,8 @@ const App = {
     this.renderQuests();
     this.registerPWA();
     document.getElementById('greet').textContent=this.greet();
+    document.querySelector('.hero-name').textContent=(Store.get().profile.name||'Loris').toUpperCase();
+    if(!Store.get().onboarded) setTimeout(()=>this.showOnboarding(),500);
   },
 
   greet(){ const h=new Date().getHours(); return h<12?'Bonjour 👋':h<18?'Bon après-midi 💪':'Bonsoir 🌙'; },
@@ -2475,6 +2502,28 @@ const App = {
     UI.toast('✅','Objectifs nutrition enregistrés'); this.renderNutrition();
   },
   saveKey(){Store.set(s=>s.openaiKey=document.getElementById('pf-key').value.trim());UI.toast('🔑','Clé OpenAI enregistrée','Coach IA avancé activé');},
+  /* ---------- ONBOARDING ---------- */
+  showOnboarding(){
+    const s=Store.get();
+    document.getElementById('ob-name').value=s.profile.name&&s.profile.name!=='Loris'?s.profile.name:'';
+    document.getElementById('ob-cur').value=''; document.getElementById('ob-goal').value='';
+    document.getElementById('onboard').classList.add('show');
+  },
+  obSex(btn){ document.querySelectorAll('#ob-sex button').forEach(b=>b.classList.remove('active')); btn.classList.add('active'); },
+  saveOnboarding(){
+    const v=id=>document.getElementById(id).value;
+    const name=v('ob-name').trim()||'Athlète';
+    const sex=document.querySelector('#ob-sex button.active').dataset.s;
+    const age=+v('ob-age')||22, height=+v('ob-height')||178;
+    const cur=+v('ob-cur')||70, goal=+v('ob-goal')||(cur+10);
+    const act=+v('ob-activity')||1.55;
+    Store.set(s=>{ s.profile={...s.profile,name,sex,age,height,curWeight:cur,goalWeight:goal}; s.__activity=act; s.onboarded=true; if(!s.measures.length)s.measures.push({date:new Date().toISOString().slice(0,10),weight:cur,arm:null,chest:null,shoulder:null,waist:null,thigh:null}); });
+    document.getElementById('onboard').classList.remove('show');
+    document.getElementById('hero-lvl'); document.querySelector('.hero-name').textContent=name.toUpperCase();
+    this.haptic(40); UI.toast('🎯','Profil configuré','Calculs personnalisés activés');
+    this.renderDash(); this.renderNutrition(); this.renderBody(); this.loadProfileInputs();
+  },
+  skipOnboarding(){ Store.set(s=>s.onboarded=true); document.getElementById('onboard').classList.remove('show'); },
   exportData(){
     const blob=new Blob([Store.export()],{type:'application/json'});
     const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='loris-fitness-data.json';a.click();
