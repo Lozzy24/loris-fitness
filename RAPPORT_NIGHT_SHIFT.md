@@ -1,6 +1,6 @@
 # 🌙 Rapport Night Shift — Loris Fitness
 
-**Session autonome · v1.3 → v1.6**
+**Session autonome · v1.3 → v1.7**
 Objectif : faire progresser le produit le plus loin possible, en autonomie, sans validation intermédiaire.
 
 ---
@@ -37,6 +37,10 @@ Objectif : faire progresser le produit le plus loin possible, en autonomie, sans
 - Helpers réutilisables `haptic` / `countUp` / `statCard` (réduction de duplication).
 
 ---
+
+### 6. Onboarding première utilisation (v1.7)
+- Écran de bienvenue : prénom, sexe, âge, taille, activité, poids actuel + objectif.
+- Active immédiatement des **calculs personnalisés** (calories, macros, prévision) au lieu des valeurs par défaut. Crée une première mesure de poids. Skippable.
 
 ## 🛠️ Améliorations transverses
 - **Performance** : libs vendées localement (Three.js, Chart.js, html5-qrcode) → offline complet, pas de dépendance CDN au runtime.
