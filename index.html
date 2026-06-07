@@ -202,6 +202,12 @@ img{max-width:100%}
 .mtag{font-size:11px;padding:4px 10px;border-radius:20px;background:var(--surface);border:1px solid var(--border);color:#ccc}
 .mtag.prim{background:rgba(232,255,60,.12);border-color:rgba(232,255,60,.25);color:var(--accent)}
 .video-ph{margin-top:8px;aspect-ratio:16/9;border-radius:12px;background:linear-gradient(135deg,#1a1a1f,#0f0f12);border:1px solid var(--border);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;color:var(--muted);font-size:12px}
+.yt-thumb{position:relative;aspect-ratio:16/9;border-radius:12px;overflow:hidden;cursor:pointer;border:1px solid var(--border);background:#000}
+.yt-thumb img{width:100%;height:100%;object-fit:cover;display:block;opacity:.92;transition:.3s}
+.yt-thumb:active img{opacity:.7}
+.yt-thumb .yt-play{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:58px;height:58px;border-radius:50%;background:rgba(232,255,60,.92);display:flex;align-items:center;justify-content:center;color:#111;font-size:22px;padding-left:4px;box-shadow:0 6px 20px rgba(0,0,0,.5)}
+.yt-frame{aspect-ratio:16/9;border-radius:12px;overflow:hidden;border:1px solid var(--border);background:#000}
+.yt-frame iframe{width:100%;height:100%;display:block;border:0}
 .video-ph .play{width:48px;height:48px;border-radius:50%;background:rgba(232,255,60,.14);display:flex;align-items:center;justify-content:center;font-size:20px;color:var(--accent)}
 
 /* set logger */
@@ -794,7 +800,7 @@ img{max-width:100%}
         <button class="btn ghost block mb" onclick="App.exportData()">⬇️ Exporter mes données (JSON)</button>
         <button class="btn ghost block" onclick="App.resetData()" style="color:var(--red)">🗑️ Réinitialiser l'application</button>
       </div>
-      <p class="small mt">Loris Fitness Premium · v1.7 · onboarding profil guidé · immersion premium · auto-deploy ✓.</p>
+      <p class="small mt">Loris Fitness Premium · v1.8 · vidéos de démonstration par exercice · onboarding · auto-deploy ✓.</p>
     </div>
   </div>
 
@@ -1107,6 +1113,23 @@ const EXO_INDEX = {};
 
 /* muscle groups for 3D highlight */
 const MUSCLES_3D = ['Pectoraux','Deltoïdes','Grand dorsal','Biceps','Triceps','Quadriceps','Ischio-jambiers','Abdominaux','Fessiers'];
+
+/* ---------- VIDEOS : démonstrations YouTube curées (FR) par exercice ----------
+   Éditable par l'utilisateur (exoOverrides[id].video). IDs vérifiés via recherche. */
+const VIDEO_MAP = {
+  // Pectoraux
+  pec1:'WlIR9zNLV1s', pec2:'1Efkh2dD4Ug', pec3:'8d4V5QGcT_A', pec4:'WZqGJxzWfGk', pec5:'lynnbMeaMcE',
+  // Dos
+  dos2:'dOukQ7QBSQs', dos3:'4X8mfaTsv1I', dos4:'VLzDhlGdpS0', dos5:'dOukQ7QBSQs',
+  // Épaules
+  ep1:'WgvZdIpBTAQ', ep5:'q_DYeb_daeY', ep6:'q_DYeb_daeY',
+  // Jambes
+  jb1:'xNPZM0vkTS8', jb2:'vp5UYo-kN8w', jb4:'c3t7gJi27Ww', jb5:'E4UDinUvGp8',
+  // Maison
+  mA1:'7Ijp_mrOhkw', mA3:'7Ijp_mrOhkw', mA4:'WgvZdIpBTAQ', mA5:'q_DYeb_daeY', mA6:'IoxRXQyHg_A',
+  mB1:'VLzDhlGdpS0', mB2:'_O-UxmwbqFc', mB3:'NqprcBoRkSc', mB4:'4X8mfaTsv1I',
+  mC1:'E4UDinUvGp8', mC2:'c3t7gJi27Ww', mC3:'Iy3J5_qzUdo', mC5:'hoPwUu8vvvw'
+};
 
 /* ---------- LIBRARY : catalogue d'alternatives par muscle (swap / adaptation) ----------
    level: easier | same | harder · equip: maison | salle | both */
@@ -1676,6 +1699,34 @@ const App = {
     if(navigator.vibrate)navigator.vibrate(30);
     UI.toast('🤖','Reco appliquée','Ajuste si besoin puis enregistre');
   },
+  parseYT(s){ if(!s)return null; s=(''+s).trim(); const m=s.match(/(?:youtu\.be\/|v=|embed\/|shorts\/)([A-Za-z0-9_-]{11})/); if(m)return m[1]; if(/^[A-Za-z0-9_-]{11}$/.test(s))return s; return null; },
+  videoIdFor(e){ const ov=Store.get().exoOverrides[e.id]; const raw=(ov&&ov.video)||VIDEO_MAP[e.id]; return raw?this.parseYT(raw):null; },
+  videoPane(e){
+    const id=this.videoIdFor(e);
+    const cleanName=(e.name||'').replace(/^\d+\.\s*/,'');
+    const q=encodeURIComponent(cleanName+' technique musculation');
+    const ov=Store.get().exoOverrides[e.id]||{};
+    const top = id
+      ? `<div class="yt-thumb" id="yt-${e.id}" onclick="App.loadVideo('${e.id}','${id}')"><img loading="lazy" src="https://i.ytimg.com/vi/${id}/hqdefault.jpg" alt="démo ${cleanName}"><div class="yt-play">▶</div></div>`
+      : `<div class="video-ph"><div class="play">🎬</div>Pas de vidéo intégrée pour cet exercice<br><span class="small">Cherche une démo ou colle ton lien ci-dessous</span></div>`;
+    return `${top}
+      <div class="flex gap mt">
+        <a class="btn ghost block" href="https://www.youtube.com/results?search_query=${q}" target="_blank" rel="noopener">🔎 Chercher sur YouTube</a>
+        ${id?`<a class="btn ghost block" href="https://www.youtube.com/watch?v=${id}" target="_blank" rel="noopener">▶ Ouvrir</a>`:''}
+      </div>
+      <div class="logger mt"><div class="logger-row"><div class="fld" style="flex:2"><label>Ta vidéo (lien YouTube)</label><input id="vid-${e.id}" placeholder="https://youtu.be/..." value="${(ov.video||'').replace(/"/g,'&quot;')}"></div><button class="btn" onclick="App.saveVideo('${e.id}')">OK</button></div></div>`;
+  },
+  loadVideo(exoId,ytid){
+    const el=document.getElementById('yt-'+exoId); if(!el)return;
+    el.outerHTML=`<div class="yt-frame"><iframe src="https://www.youtube-nocookie.com/embed/${ytid}?autoplay=1&rel=0&modestbranding=1" title="démonstration" allow="autoplay; encrypted-media; fullscreen; picture-in-picture" allowfullscreen></iframe></div>`;
+    this.haptic(12);
+  },
+  saveVideo(exoId){
+    const el=document.getElementById('vid-'+exoId); const v=el?el.value.trim():'';
+    if(v && !this.parseYT(v)){ UI.toast('⚠️','Lien YouTube non reconnu','Ex: https://youtu.be/ID'); return; }
+    Store.set(s=>{ s.exoOverrides[exoId]=s.exoOverrides[exoId]||{}; if(v)s.exoOverrides[exoId].video=v; else delete s.exoOverrides[exoId].video; });
+    UI.toast('🎬','Vidéo enregistrée'); this.refreshExoCard(exoId,'video');
+  },
   muscleKeySet(list){
     const set=new Set();
     (list||[]).forEach(raw=>{
@@ -1848,9 +1899,7 @@ const App = {
             ${histHtml}
           </div>
         </div>
-        <div class="fpane" data-p="video">
-          <div class="video-ph"><div class="play">▶</div>Emplacement vidéo<br><span class="small">YouTube · MP4 · GIF — branche ton lien ici</span></div>
-        </div>
+        <div class="fpane" data-p="video">${this.videoPane(e)}</div>
       </div>
     </div>`;
   },
