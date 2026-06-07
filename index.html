@@ -517,6 +517,30 @@ img{max-width:100%}
 /* utility */
 .mt{margin-top:14px}.mb{margin-bottom:14px}.flex{display:flex}.gap{gap:10px}.center{align-items:center}
 .confetti{position:fixed;width:10px;height:10px;z-index:101;pointer-events:none;top:-10px}
+/* WORKOUT MODE (focus plein écran) */
+#workoutMode{position:fixed;inset:0;z-index:58;background:radial-gradient(130% 80% at 50% 0%,#17171f,#0a0a0c);display:none;flex-direction:column;padding:calc(16px + env(safe-area-inset-top,0px)) 16px calc(16px + var(--safe-b));max-width:640px;margin:0 auto}
+#workoutMode.show{display:flex;animation:rise .35s cubic-bezier(.2,.8,.2,1)}
+.wm-top{display:flex;align-items:center;gap:12px;margin-bottom:12px}
+.wm-top .wm-x{width:40px;height:40px;border-radius:12px;background:var(--card);border:1px solid var(--border);font-size:16px;color:var(--muted);flex-shrink:0}
+.wm-title{flex:1;font-family:'Bebas Neue';font-size:24px;letter-spacing:1px;line-height:1}
+.wm-timer{font-size:12.5px;font-weight:800;color:var(--accent);min-width:74px;text-align:right}
+.wm-progress{height:8px;background:var(--surface);border-radius:10px;overflow:hidden;margin-bottom:18px}
+.wm-progress > div{height:100%;background:linear-gradient(90deg,var(--accent),var(--green));width:0;transition:width .45s cubic-bezier(.2,.8,.2,1)}
+.wm-body{flex:1;overflow:auto;-webkit-overflow-scrolling:touch}
+.wm-exo-name{font-family:'Bebas Neue';font-size:32px;letter-spacing:1px;line-height:1.05;margin-bottom:4px}
+.wm-exo-meta{font-size:12.5px;color:var(--muted);margin-bottom:16px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.wm-set{display:flex;align-items:center;gap:14px;padding:15px 16px;background:var(--card);border:1px solid var(--border);border-radius:14px;margin-bottom:10px;transition:.2s}
+.wm-set.checked{border-color:rgba(61,220,132,.45);background:rgba(61,220,132,.08)}
+.wm-set .snum{width:30px;height:30px;font-size:13px}
+.wm-set .sdesc{flex:1;font-size:14px;color:#e0e0e0;line-height:1.35}
+.wm-set .scheck{width:40px;height:40px;font-size:19px;border-width:2px}
+.wm-nav{display:flex;align-items:center;gap:10px;margin:12px 0 10px}
+.wm-nav button{flex:1;padding:13px;border-radius:12px;background:var(--card);border:1px solid var(--border2);font-weight:700;font-size:13px;color:var(--text)}
+.wm-nav button:disabled{opacity:.35}
+.wm-count{font-size:12px;color:var(--muted);min-width:62px;text-align:center;font-weight:700}
+.wm-rest{display:flex;align-items:center;justify-content:center;gap:14px;background:rgba(232,255,60,.08);border:1px solid rgba(232,255,60,.2);border-radius:14px;padding:12px;margin-bottom:12px}
+.wm-rest .wr-t{font-family:'Bebas Neue';font-size:28px;color:var(--accent);min-width:54px;text-align:center}
+.wm-rest button{padding:8px 12px;border-radius:9px;background:var(--surface);border:1px solid var(--border2);font-weight:700;font-size:12px;color:var(--text)}
 /* press feedback (mobile premium) */
 .stat,.quest,.exo,.today,.ach{transition:transform .12s ease, border-color .2s, background .3s}
 .stat:active,.quest:active{transform:scale(.975)}
@@ -825,11 +849,28 @@ img{max-width:100%}
         <button class="btn ghost block mb" onclick="App.exportData()">⬇️ Exporter mes données (JSON)</button>
         <button class="btn ghost block" onclick="App.resetData()" style="color:var(--red)">🗑️ Réinitialiser l'application</button>
       </div>
-      <p class="small mt">Loris Fitness Premium · v2.0 · coach IA proactif (bilan hebdo) · vidéos · quêtes · 3D · auto-deploy ✓.</p>
+      <p class="small mt">Loris Fitness Premium · v2.1 · mode séance plein écran · coach proactif · vidéos · auto-deploy ✓.</p>
     </div>
   </div>
 
 </div><!-- /#app -->
+
+<!-- WORKOUT MODE -->
+<div id="workoutMode">
+  <div class="wm-top">
+    <button class="wm-x" onclick="App.closeFocus()">✕</button>
+    <div class="wm-title" id="wm-group">SÉANCE</div>
+    <div class="wm-timer" id="wm-timer"></div>
+  </div>
+  <div class="wm-progress"><div id="wm-progfill"></div></div>
+  <div class="wm-body" id="wm-body"></div>
+  <div class="wm-nav">
+    <button id="wm-prev" onclick="App.focusPrev()">‹ Précédent</button>
+    <div class="wm-count" id="wm-count"></div>
+    <button id="wm-next" onclick="App.focusNext()">Suivant ›</button>
+  </div>
+  <button class="btn org block" onclick="App.focusFinish()">Terminer la séance ✓</button>
+</div>
 
 <!-- ONBOARDING -->
 <div id="onboard" class="sheet-back" style="align-items:center">
@@ -1539,11 +1580,61 @@ const App = {
     const g=this.groupBase(gid); if(!g){el.innerHTML='';return;}
     el.innerHTML=`<div class="today"><div class="tdic">${g.emoji}</div><div class="tdi"><div class="tdl">Séance du jour</div><div class="tdn">${g.title}</div><div class="tds">${doneToday?'✓ Séance validée — bravo !':g.exos.length+' exercices • prêt à attaquer'}</div></div>${doneToday?'':`<button class="btn" onclick="App.startToday('${gid}')">Démarrer</button>`}</div>`;
   },
-  startToday(gid){
-    this.curGroup=gid;
-    document.querySelector('.nav-i[data-page="train"]').click();
-    setTimeout(()=>{ document.querySelectorAll('.subtab').forEach(t=>t.classList.toggle('active',t.dataset.g===gid)); this.renderTraining(); },60);
+  startToday(gid){ this.startFocus(gid); },
+
+  /* ---------- MODE SÉANCE (focus plein écran) ---------- */
+  focusExos(){ return this.getGroupExos(this.curGroup); },
+  startFocus(gid){
+    this.curGroup=gid; this.focus={idx:0};
+    const g=this.groupBase(gid);
+    document.getElementById('wm-group').textContent=g?g.title:'SÉANCE';
+    document.getElementById('workoutMode').classList.add('show');
+    if(!this.workoutStart)this.workoutStart=Date.now();
+    this.haptic(20); this.focusRender();
   },
+  closeFocus(){ document.getElementById('workoutMode').classList.remove('show'); },
+  focusRender(){
+    const exos=this.focusExos(); if(!exos.length){this.closeFocus();return;}
+    this.focus.idx=Math.max(0,Math.min(this.focus.idx,exos.length-1));
+    const e=exos[this.focus.idx]; const checks=Store.get().__checks?.[e.id]||{};
+    let rows='';
+    e.sets.forEach((st,i)=>{
+      if(st.title){rows+=`<div class="series-title">${st.title}</div>`;return;}
+      if(st.hr){rows+='<hr class="divider">';return;}
+      const on=checks[i]?'on':'';
+      const tag=st.deg?'<span class="tag-deg">Dégressif</span>':st.ench?'<span class="tag-ench">Enchaîner S1</span>':'';
+      rows+=`<div class="srow wm-set ${on?'checked':''}"><div class="snum ${st.o?'orange':''}">${st.n}</div><div class="sdesc">${st.d} ${tag}</div><div class="scheck ${on}" onclick="App.focusToggle('${e.id}',${i},this)">✓</div></div>`;
+    });
+    const restBlock = (this.restLeft>0 && this.restTimer) ? `<div class="wm-rest"><span>Repos</span><div class="wr-t" id="wm-rest-t">${this.restLeft}</div><button onclick="App.restAdd(15)">+15s</button><button onclick="App.restStop()">Skip</button></div>` : '';
+    document.getElementById('wm-body').innerHTML=`
+      <div class="wm-exo-name">${e.name}</div>
+      <div class="wm-exo-meta">${e.maison?'🏠 Maison':'🏋️ Salle'} • ${e.meta}${e.targetLoad!=null?` • 🎯 ${e.targetLoad}kg`:''}</div>
+      ${restBlock}
+      ${e.superset?'<div class="superset-badge">⚡ SUPERSET</div>':''}
+      ${rows}`;
+    document.getElementById('wm-count').textContent=(this.focus.idx+1)+' / '+exos.length;
+    document.getElementById('wm-prev').disabled=this.focus.idx===0;
+    document.getElementById('wm-next').disabled=this.focus.idx===exos.length-1;
+    this.focusProgress();
+  },
+  focusProgress(){
+    const exos=this.focusExos(); const s=Store.get(); let total=0,done=0;
+    exos.forEach(e=>{const c=s.__checks?.[e.id]||{};total+=e.sets.filter(x=>x.n).length;done+=Object.values(c).filter(Boolean).length;});
+    document.getElementById('wm-progfill').style.width=(total?done/total*100:0)+'%';
+  },
+  focusToggle(id,i,el){
+    this.toggleSet(id,i,el);
+    setTimeout(()=>{ if(document.getElementById('workoutMode').classList.contains('show'))this.focusRender(); },360);
+    this.focusProgress();
+    // auto-avance si exo terminé
+    const exos=this.focusExos(); const e=exos[this.focus.idx];
+    const total=e.sets.filter(x=>x.n).length; const c=Store.get().__checks?.[id]||{};
+    const done=Object.values(c).filter(Boolean).length;
+    if(done>=total && this.focus.idx<exos.length-1){ setTimeout(()=>{ if(document.getElementById('workoutMode').classList.contains('show'))this.focusNext(); },800); }
+  },
+  focusPrev(){ if(this.focus.idx>0){this.focus.idx--;this.haptic(10);this.focusRender();} },
+  focusNext(){ const n=this.focusExos().length; if(this.focus.idx<n-1){this.focus.idx++;this.haptic(10);this.focusRender();} },
+  focusFinish(){ this.closeFocus(); this.finishWorkout(); },
 
   /* ---------- PRÉVISION OBJECTIF ---------- */
   renderForecast(){
@@ -1718,6 +1809,7 @@ const App = {
     const g=[...PROGRAM.salle,...PROGRAM.maison].find(x=>x.id===this.curGroup);
     const s=Store.get();
     let html=`<div class="group-head"><div class="group-emoji">${g.emoji}</div><div><div class="group-title">${g.title}</div><div>${g.maison?'<span class="badge-maison">HALTÈRES + POIDS DU CORPS</span>':'<span class="badge-salle">SALLE</span>'}</div></div></div>`;
+    html+=`<button class="btn block mb" onclick="App.startFocus('${g.id}')">▶ Démarrer en mode séance</button>`;
     this.getGroupExos(g.id).forEach(e=>html+=this.exoCard(e,g.maison));
     // add-exercise zone + hidden restore
     const hidden=g.exos.filter(e=>s.exoOverrides[e.id]&&s.exoOverrides[e.id].hidden);
@@ -2052,7 +2144,8 @@ const App = {
   /* ---------- REST TIMER ---------- */
   startRest(sec,exoId){
     clearInterval(this.restTimer);this.restLeft=sec;this.restTotal=sec;
-    const box=document.getElementById('rest');box.classList.add('show');
+    const inFocus=document.getElementById('workoutMode').classList.contains('show');
+    const box=document.getElementById('rest');if(!inFocus)box.classList.add('show');
     const re=this.exo(exoId); document.getElementById('rest-label').textContent=re?re.name.replace(/^\d+\.\s*/,'').slice(0,22):'Récupération';
     this.tickRest();
     this.restTimer=setInterval(()=>{this.restLeft--;this.tickRest();if(this.restLeft<=0){this.restStop();UI.toast('⏰','Repos terminé','Go série suivante 💪');if(navigator.vibrate)navigator.vibrate(200);}},1000);
@@ -2061,9 +2154,11 @@ const App = {
     document.getElementById('rest-time').textContent=this.restLeft;
     const c=document.getElementById('rest-ring-c');const circ=138;
     c.style.strokeDashoffset=circ*(1-this.restLeft/this.restTotal);
+    const wt=document.getElementById('wm-timer'); if(wt)wt.textContent=this.restLeft>0?('⏱ '+this.restLeft+'s'):'';
+    const wr=document.getElementById('wm-rest-t'); if(wr)wr.textContent=this.restLeft;
   },
   restAdd(s){this.restLeft+=s;this.restTotal+=s;this.tickRest();},
-  restStop(){clearInterval(this.restTimer);document.getElementById('rest').classList.remove('show');},
+  restStop(){clearInterval(this.restTimer);this.restTimer=null;this.restLeft=0;document.getElementById('rest').classList.remove('show');const wt=document.getElementById('wm-timer');if(wt)wt.textContent='';if(document.getElementById('workoutMode').classList.contains('show'))this.focusRender();},
 
   /* ---------- ADAPTATION / ÉDITION / SWAP / CUSTOM ---------- */
   setDifficulty(id,level){
