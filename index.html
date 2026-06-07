@@ -763,6 +763,20 @@ img{max-width:100%}
         </div>
         <button class="btn block" onclick="App.saveProfile()">Enregistrer</button>
       </div>
+
+      <div class="section-label"><span class="dot"></span>Planning de la semaine<span class="lbl-line"></span></div>
+      <div class="card pad mb" id="weekplan-edit"></div>
+
+      <div class="section-label"><span class="dot orange"></span>Objectifs nutrition (par kg de poids)<span class="lbl-line"></span></div>
+      <div class="card pad mb">
+        <div class="row2">
+          <div class="field"><label>Protéines (g/kg)</label><input class="input" id="pf-prot" type="number" inputmode="decimal" step="0.1"></div>
+          <div class="field"><label>Lipides (g/kg)</label><input class="input" id="pf-lip" type="number" inputmode="decimal" step="0.1"></div>
+        </div>
+        <p class="small mb">Défaut prise de masse : 2,0 g/kg protéines · 1,0 g/kg lipides. Le reste = glucides.</p>
+        <button class="btn block" onclick="App.saveMacroTargets()">Enregistrer les objectifs</button>
+      </div>
+
       <div class="section-label"><span class="dot orange"></span>Coach IA — OpenAI<span class="lbl-line"></span></div>
       <div class="card pad mb">
         <div class="field"><label>Clé API OpenAI (stockée en local)</label><input class="input" id="pf-key" type="password" placeholder="sk-..."></div>
@@ -773,7 +787,7 @@ img{max-width:100%}
         <button class="btn ghost block mb" onclick="App.exportData()">⬇️ Exporter mes données (JSON)</button>
         <button class="btn ghost block" onclick="App.resetData()" style="color:var(--red)">🗑️ Réinitialiser l'application</button>
       </div>
-      <p class="small mt">Loris Fitness Premium · v1.4 · quêtes & séance du jour · prévision objectif · auto-deploy ✓.</p>
+      <p class="small mt">Loris Fitness Premium · v1.5 · reco surcharge progressive · planning & macros éditables · auto-deploy ✓.</p>
     </div>
   </div>
 
@@ -885,7 +899,8 @@ const Store = (() => {
     foodFavorites:[], // [{name,kcal,p,c,f}]
     daily:{},         // dateISO -> {sets,workouts,volume,logs}
     questClaims:{daily:{date:'',ids:[]},weekly:{week:'',ids:[]}}, // claimed quest ids per period
-    weekPlan:['pecs','rest','dos','rest','epaules','jambes','rest'] // Mon..Sun training plan (editable)
+    weekPlan:['pecs','rest','dos','rest','epaules','jambes','rest'], // Mon..Sun training plan (editable)
+    macroOverride:{prot:2.0,lip:1.0} // g/kg targets (editable)
   };
   let state = load();
   function load(){ try{ return Object.assign(JSON.parse(JSON.stringify(def)), JSON.parse(localStorage.getItem(KEY))||{}); }catch(e){ return JSON.parse(JSON.stringify(def)); } }
@@ -1319,13 +1334,14 @@ const App = {
 
   /* ---------- WEEK STRIP ---------- */
   buildWeek(){
-    const plan=[{l:'L',n:'PECS',t:'train'},{l:'M',n:'REPOS',t:'rest'},{l:'M',n:'DOS',t:'train'},{l:'J',n:'REPOS',t:'rest'},{l:'V',n:'ÉPAU',t:'train'},{l:'S',n:'JAMB',t:'train b'},{l:'D',n:'REPOS',t:'rest'}];
+    const letters=['L','M','M','J','V','S','D'];
+    const map={rest:{n:'REPOS',t:'rest'},pecs:{n:'PECS',t:'train'},dos:{n:'DOS',t:'train'},epaules:{n:'ÉPAU',t:'train'},jambes:{n:'JAMB',t:'train b'},maisonA:{n:'M-A',t:'train b'},maisonB:{n:'M-B',t:'train b'},maisonC:{n:'M-C',t:'train b'}};
+    const s=Store.get(); const plan=s.weekPlan||[];
     const today=(new Date().getDay()+6)%7;
-    const s=Store.get();
     const wk=this.weekKeys();
-    document.getElementById('week-strip').innerHTML=plan.map((d,i)=>{
-      const done=s.weekDone[wk[i]]?'done':'';
-      return `<div class="day ${d.t} ${i===today?'today':''} ${done}"><div class="dl">${d.l}</div><div>${d.n}</div></div>`;
+    document.getElementById('week-strip').innerHTML=letters.map((l,i)=>{
+      const d=map[plan[i]]||map.rest; const done=s.weekDone[wk[i]]?'done':'';
+      return `<div class="day ${d.t} ${i===today?'today':''} ${done}"><div class="dl">${l}</div><div>${d.n}</div></div>`;
     }).join('');
   },
   weekKeys(){ const now=new Date(); const mon=new Date(now); mon.setDate(now.getDate()-((now.getDay()+6)%7)); return [...Array(7)].map((_,i)=>{const d=new Date(mon);d.setDate(mon.getDate()+i);return d.toISOString().slice(0,10);}); },
@@ -1599,6 +1615,22 @@ const App = {
     const cur=norm(e.name);
     return (LIBRARY[key]||[]).filter(it=>it.equip==='both'||it.equip===eq).filter(it=>norm(it.name)!==cur);
   },
+  recoFor(exoId){
+    const s=Store.get(); const log=s.logs[exoId]||[]; const ov=s.exoOverrides[exoId]||{};
+    if(!log.length){ return {msg:'Première fois : choisis un poids que tu tiens ~12 reps en gardant 1-2 reps en réserve.',weight:ov.targetLoad||null,reps:12}; }
+    const last=log[log.length-1];
+    // progressive overload : si reps élevées -> +charge ; sinon +1 rep
+    if(last.reps>=12){ const w=Math.round((last.weight+2.5)*2)/2; return {msg:`Surcharge : tu as fait ${last.reps} reps à ${last.weight}kg → passe à <b>${w}kg</b> et vise 8-10 reps.`,weight:w,reps:10}; }
+    if(last.reps<=6){ return {msg:`Lourd la dernière fois (${last.reps} reps). Garde <b>${last.weight}kg</b> et essaie d'ajouter 1-2 reps.`,weight:last.weight,reps:last.reps+1}; }
+    return {msg:`Progression : reste à <b>${last.weight}kg</b> et vise <b>${last.reps+1} reps</b> (tu y étais à ${last.reps}).`,weight:last.weight,reps:last.reps+1};
+  },
+  applyReco(exoId){
+    const r=this.recoFor(exoId);
+    const w=document.getElementById('lg-w-'+exoId), rp=document.getElementById('lg-r-'+exoId);
+    if(w&&r.weight!=null)w.value=r.weight; if(rp&&r.reps)rp.value=r.reps;
+    if(navigator.vibrate)navigator.vibrate(30);
+    UI.toast('🤖','Reco appliquée','Ajuste si besoin puis enregistre');
+  },
   muscleKeySet(list){
     const set=new Set();
     (list||[]).forEach(raw=>{
@@ -1759,6 +1791,7 @@ const App = {
           ${variants}
         </div>
         <div class="fpane" data-p="log">
+          <div class="tip" style="margin-top:0;display:flex;align-items:center;gap:10px;justify-content:space-between"><span>🤖 ${this.recoFor(e.id).msg}</span><button class="btn sm" onclick="App.applyReco('${e.id}')" style="flex-shrink:0">Appliquer</button></div>
           <div class="logger">
             <div class="logger-row">
               <div class="log-stepwrap"><label>Poids kg</label><div class="stepper"><button onclick="App.step('lg-w-${e.id}',-2.5)">−</button><input type="number" inputmode="decimal" id="lg-w-${e.id}" value="${pr?pr.weight:(target!=null?target:'')}"><button onclick="App.step('lg-w-${e.id}',2.5)">+</button></div></div>
@@ -2135,7 +2168,8 @@ const App = {
   },
   nutTargets(){
     const s=Store.get(); const target=this.calcCalories(); const w=s.profile.curWeight; const cal=target||2500;
-    const prot=Math.round(w*2), lip=Math.round(w*1);
+    const mo=s.macroOverride||{prot:2,lip:1};
+    const prot=Math.round(w*(mo.prot||2)), lip=Math.round(w*(mo.lip||1));
     const kcalPL=prot*4+lip*9; const gluc=Math.round(Math.max(0,(cal-kcalPL)/4));
     return {cal,prot,lip,gluc,hasTarget:!!target};
   },
@@ -2398,11 +2432,28 @@ const App = {
     document.getElementById('pf-goal').value=s.profile.goalWeight;
     document.getElementById('pf-key').value=s.openaiKey||'';
     document.getElementById('c-activity').value=s.__activity||1.55;
+    const mo=s.macroOverride||{prot:2,lip:1};
+    const pp=document.getElementById('pf-prot'), pl=document.getElementById('pf-lip');
+    if(pp)pp.value=mo.prot; if(pl)pl.value=mo.lip;
+    this.renderWeekPlanEditor();
   },
   saveProfile(){
     const cur=+document.getElementById('pf-cur').value,goal=+document.getElementById('pf-goal').value;
     Store.set(s=>{s.profile.curWeight=cur;s.profile.goalWeight=goal;});
     UI.toast('✅','Profil enregistré');this.renderDash();
+  },
+  renderWeekPlanEditor(){
+    const el=document.getElementById('weekplan-edit'); if(!el)return;
+    const days=['Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi','Dimanche'];
+    const opts=[['rest','Repos'],['pecs','Pectoraux'],['dos','Dorsaux'],['epaules','Épaules'],['jambes','Jambes'],['maisonA','Maison A'],['maisonB','Maison B'],['maisonC','Maison C']];
+    const plan=Store.get().weekPlan||[];
+    el.innerHTML=days.map((d,i)=>`<div class="edit-row"><div class="elabel" style="width:80px">${d}</div><select class="input" onchange="App.setWeekDay(${i},this.value)">${opts.map(([v,l])=>`<option value="${v}" ${plan[i]===v?'selected':''}>${l}</option>`).join('')}</select></div>`).join('');
+  },
+  setWeekDay(i,v){ Store.set(s=>{ s.weekPlan=s.weekPlan||[]; s.weekPlan[i]=v; }); this.buildWeek(); this.renderToday(); UI.toast('📅','Planning mis à jour'); },
+  saveMacroTargets(){
+    const prot=+document.getElementById('pf-prot').value||2, lip=+document.getElementById('pf-lip').value||1;
+    Store.set(s=>{ s.macroOverride={prot,lip}; });
+    UI.toast('✅','Objectifs nutrition enregistrés'); this.renderNutrition();
   },
   saveKey(){Store.set(s=>s.openaiKey=document.getElementById('pf-key').value.trim());UI.toast('🔑','Clé OpenAI enregistrée','Coach IA avancé activé');},
   exportData(){
