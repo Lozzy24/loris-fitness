@@ -305,6 +305,26 @@ img{max-width:100%}
 .forecast .fc-note{font-size:11.5px;color:var(--muted);line-height:1.5}
 .forecast .fc-note b{color:var(--text)}
 
+/* COACH ANALYSIS */
+.coach-card{background:radial-gradient(120% 120% at 0% 0%,rgba(26,209,255,.1),transparent 55%),linear-gradient(160deg,#14141b,#0f0f13);border:1px solid #232733;border-radius:18px;padding:16px}
+.coach-head{display:flex;align-items:center;gap:14px;margin-bottom:12px}
+.coach-ring{width:64px;height:64px;flex-shrink:0;position:relative}
+.coach-ring svg{transform:rotate(-90deg)}
+.coach-ring .cv{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.coach-ring .cv b{font-family:'Bebas Neue';font-size:22px;line-height:1;color:var(--accent3)}
+.coach-ring .cv span{font-size:7px;letter-spacing:1px;color:var(--muted)}
+.coach-head .ch-txt{flex:1;min-width:0}
+.coach-head .ch-hl{font-weight:800;font-size:14px;line-height:1.3}
+.coach-head .ch-sub{font-size:11.5px;color:var(--muted);margin-top:2px}
+.coach-metrics{display:flex;gap:8px;margin-bottom:12px}
+.coach-metrics .cm{flex:1;text-align:center;background:rgba(0,0,0,.25);border:1px solid var(--border);border-radius:10px;padding:8px 4px}
+.coach-metrics .cm .v{font-family:'Bebas Neue';font-size:19px;line-height:1}
+.coach-metrics .cm .l{font-size:8.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-top:2px}
+.coach-reco{list-style:none}
+.coach-reco li{display:flex;gap:9px;align-items:flex-start;font-size:12.5px;color:#c8c8c8;line-height:1.5;padding:7px 0;border-top:1px solid var(--border)}
+.coach-reco li .ri{flex-shrink:0;font-size:15px}
+.coach-reco li b{color:var(--text)}
+
 /* FOOD SHEET (bottom modal) */
 .sheet-back{position:fixed;inset:0;z-index:95;background:rgba(0,0,0,.6);backdrop-filter:blur(6px);display:none;align-items:flex-end}
 .sheet-back.show{display:flex;animation:rise .25s}
@@ -457,7 +477,7 @@ img{max-width:100%}
 
 /* coach chat */
 .chat{display:flex;flex-direction:column;gap:10px;margin-bottom:14px}
-.msg{max-width:84%;padding:12px 14px;border-radius:16px;font-size:13.5px;line-height:1.5}
+.msg{max-width:84%;padding:12px 14px;border-radius:16px;font-size:13.5px;line-height:1.5;white-space:pre-line}
 .msg.bot{align-self:flex-start;background:var(--card);border:1px solid var(--border);border-bottom-left-radius:5px}
 .msg.me{align-self:flex-end;background:var(--accent);color:#111;border-bottom-right-radius:5px;font-weight:500}
 .coach-in{display:flex;gap:8px}
@@ -564,6 +584,9 @@ img{max-width:100%}
 
     <div class="section-label"><span class="dot blue"></span>Prévision objectif<span class="lbl-line"></span></div>
     <div id="forecast-card"></div>
+
+    <div class="section-label"><span class="dot"></span>Coach — bilan de la semaine<span class="lbl-line"></span></div>
+    <div id="coach-insight"></div>
 
     <div class="section-label"><span class="dot blue"></span>Visualiseur musculaire 3D<span class="lbl-line"></span></div>
     <div class="card pad">
@@ -757,6 +780,8 @@ img{max-width:100%}
           <div><div style="font-weight:800">Coach IA</div><div class="small">Conseils, motivation, analyse. Architecture prête pour OpenAI.</div></div>
         </div>
       </div>
+      <div class="section-label"><span class="dot"></span>Bilan de la semaine<span class="lbl-line"></span></div>
+      <div id="coach-analysis" class="mb"></div>
       <div class="quick-q" id="quick-q"></div>
       <div class="chat" id="chat"></div>
       <div class="coach-in">
@@ -800,7 +825,7 @@ img{max-width:100%}
         <button class="btn ghost block mb" onclick="App.exportData()">⬇️ Exporter mes données (JSON)</button>
         <button class="btn ghost block" onclick="App.resetData()" style="color:var(--red)">🗑️ Réinitialiser l'application</button>
       </div>
-      <p class="small mt">Loris Fitness Premium · v1.9 · vidéos sur les 39 exercices (vérifiées) · onboarding · auto-deploy ✓.</p>
+      <p class="small mt">Loris Fitness Premium · v2.0 · coach IA proactif (bilan hebdo) · vidéos · quêtes · 3D · auto-deploy ✓.</p>
     </div>
   </div>
 
@@ -1279,9 +1304,10 @@ const Coach = {
   reply(q){
     const ql=q.toLowerCase();
     const s=Store.get();
-    if(/progress|évolu|analyse|stats?/.test(ql)){
-      const lvl=Gami.level(s.xp);
-      return `Analyse rapide : Niveau ${lvl}, ${s.workouts} séances, ${s.totalSets} séries validées, ${(s.totalTonnage/1000).toFixed(1)} t soulevées. ${s.measures.length>1?('Poids '+s.measures[0].weight+'→'+s.measures[s.measures.length-1].weight+' kg. '):''}Continue la surcharge progressive et garde le surplus calorique !`;
+    if(/progress|évolu|analyse|stats?|bilan|semaine/.test(ql)){
+      const a=App.coachAnalyze();
+      const recoTxt=a.reco.map(r=>'• '+r.t.replace(/<\/?b>/g,'')).join('\n');
+      return `📊 ${a.headline} (score ${a.score}/100)\n${a.workouts}/${a.planDays} séances · ${(a.vol/1000).toFixed(1)} t de volume${a.proteinPct!=null?' · protéines '+a.proteinPct+'%':''}${a.prThisWeek?' · '+a.prThisWeek+' record(s)':''}.\n\n${recoTxt}`;
     }
     for(const e of Coach.kb){ if(e.k.some(k=>ql.includes(k))) return e.a; }
     return "Bonne question ! Concentre-toi sur 3 piliers prise de masse : surplus calorique (+300-500 kcal), protéines (1.8 g/kg), surcharge progressive. Demande-moi des détails sur la nutrition, la récup ou une technique précise. (Active une clé OpenAI dans Profil pour des réponses avancées.)";
@@ -1431,7 +1457,7 @@ const App = {
     document.getElementById('dash-prs').innerHTML = prs.length? prs.map(([id,p])=>{
       const e=EXO_INDEX[id]; return `<div class="exo"><div class="exo-h" style="cursor:default"><div class="exo-ic salle">🏆</div><div class="exo-i"><div class="exo-n">${e?e.name.replace(/^\d+\.\s*/,''):id}</div><div class="exo-m">Record : <b style="color:var(--gold)">${p.weight} kg × ${p.reps}</b></div></div></div></div>`;
     }).join('') : `<div class="empty"><div class="e">🏆</div>Aucun record encore. Log tes premières séries dans Training !</div>`;
-    this.renderToday(); this.renderQuests(); this.renderForecast();
+    this.renderToday(); this.renderQuests(); this.renderForecast(); this.renderCoachInsight();
   },
   favExo(){
     const s=Store.get(); let best='—',n=0;
@@ -1542,6 +1568,65 @@ const App = {
       <div class="fc-track"><div class="fc-fill" style="width:${pct}%"></div></div>
       <div class="fc-note">${etaTxt}</div></div>`;
   },
+
+  /* ---------- COACH IA PROACTIF : bilan hebdo data-driven ---------- */
+  coachAnalyze(){
+    const s=Store.get(); const wk=this.weekKeys();
+    let vol=0,sets=0,logs=0; wk.forEach(k=>{const r=s.daily[k]; if(r){vol+=r.volume||0;sets+=r.sets||0;logs+=r.logs||0;}});
+    const workouts=wk.filter(k=>s.weekDone[k]).length;
+    const lastWk=wk.map(k=>{const d=new Date(k);d.setDate(d.getDate()-7);return d.toISOString().slice(0,10);});
+    let lastVol=0; lastWk.forEach(k=>{const r=s.daily[k]; if(r)lastVol+=r.volume||0;});
+    const t=this.nutTargets(); let pSum=0,pDays=0;
+    wk.forEach(k=>{ const day=s.nutrition[k]; if(day){ const cP=Object.values(day.meals).flat().reduce((a,m)=>a+(+m.p||0),0); if(cP>0){pSum+=Math.min(100,cP/(t.prot||1)*100);pDays++;} } });
+    const proteinPct=pDays?Math.round(pSum/pDays):null;
+    const m=s.measures; let rate=null; if(m.length>=2){const f=m[0],l=m[m.length-1];const days=Math.max(1,(new Date(l.date)-new Date(f.date))/86400000);rate=(l.weight-f.weight)/days;}
+    const prThisWeek=Object.values(s.prs).filter(p=>wk.includes(p.date)).length;
+    const planDays=(s.weekPlan||[]).filter(g=>g&&g!=='rest').length||4;
+    const volTrend=lastVol?Math.round((vol-lastVol)/lastVol*100):null;
+    // score /100
+    let score=Math.min(40,workouts/planDays*40)
+      + (proteinPct!=null?Math.min(30,proteinPct/100*30):15)
+      + (lastVol?(vol>=lastVol?20:Math.max(0,vol/lastVol*20)):(vol>0?15:5))
+      + Math.min(10,prThisWeek*5);
+    score=Math.round(Math.min(100,score));
+    // recommandations priorisées
+    const reco=[];
+    if(workouts<planDays) reco.push({i:'📅',t:`<b>${workouts}/${planDays} séances</b> cette semaine. Vise la régularité — la constance prime sur l'intensité.`});
+    if(proteinPct!=null && proteinPct<80) reco.push({i:'🥩',t:`Protéines à <b>${proteinPct}%</b> de la cible. Ajoute une source par repas (œufs, whey, fromage blanc).`});
+    else if(proteinPct===null) reco.push({i:'🍽️',t:`Aucun repas loggé cette semaine. Remplis ton journal pour piloter ta prise de masse.`});
+    if(volTrend!=null && volTrend<0) reco.push({i:'📉',t:`Volume en baisse (<b>${volTrend}%</b> vs semaine passée). Ajoute 1 série ou +2,5 kg sur tes gros exercices.`});
+    if(volTrend!=null && volTrend>=10) reco.push({i:'📈',t:`Volume en hausse (<b>+${volTrend}%</b>) 🔥 Surcharge progressive au top, continue.`});
+    if(rate!=null && rate<=0.005 && (s.profile.goalWeight-s.profile.curWeight)>0) reco.push({i:'⚖️',t:`Ton poids stagne. Ajoute <b>+200 kcal/j</b> (glucides autour de l'entraînement) pour relancer la masse.`});
+    if(prThisWeek>0) reco.push({i:'🏆',t:`<b>${prThisWeek} record(s)</b> battu(s) cette semaine. Excellent — note tes charges pour reproduire.`});
+    if(!reco.length) reco.push({i:'💪',t:`Tout est en place. Reste régulier, mange en surplus, dors 8 h. Les kg de muscle suivent.`});
+    // headline
+    let headline,sub;
+    if(score>=80){headline='Semaine excellente 🔥';sub='Tu coches toutes les cases de la prise de masse.';}
+    else if(score>=55){headline='Bonne semaine 💪';sub='Solide. Quelques ajustements pour passer au niveau supérieur.';}
+    else if(score>=30){headline='Semaine à relancer';sub='La base est là, manque de la constance.';}
+    else {headline='On démarre 🚀';sub='Logge tes séances et repas, le coach t\'analysera en détail.';}
+    return {score,workouts,planDays,vol,volTrend,proteinPct,prThisWeek,sets,reco:reco.slice(0,4),headline,sub};
+  },
+  coachCardHTML(a,compact){
+    const off=176*(1-a.score/100);
+    const metrics=`<div class="coach-metrics">
+      <div class="cm"><div class="v" style="color:var(--accent)">${a.workouts}/${a.planDays}</div><div class="l">Séances</div></div>
+      <div class="cm"><div class="v" style="color:var(--accent2)">${(a.vol/1000).toFixed(1)}t</div><div class="l">Volume</div></div>
+      <div class="cm"><div class="v" style="color:var(--accent3)">${a.proteinPct!=null?a.proteinPct+'%':'—'}</div><div class="l">Protéines</div></div>
+      <div class="cm"><div class="v" style="color:var(--gold)">${a.prThisWeek}</div><div class="l">Records</div></div>
+    </div>`;
+    return `<div class="coach-card">
+      <div class="coach-head">
+        <div class="coach-ring"><svg width="64" height="64"><circle cx="32" cy="32" r="28" stroke="#232733" stroke-width="6" fill="none"/><circle cx="32" cy="32" r="28" stroke="#1ad1ff" stroke-width="6" fill="none" stroke-linecap="round" stroke-dasharray="176" stroke-dashoffset="${off}"/></svg><div class="cv"><b>${a.score}</b><span>SCORE</span></div></div>
+        <div class="ch-txt"><div class="ch-hl">${a.headline}</div><div class="ch-sub">${a.sub}</div></div>
+      </div>
+      ${metrics}
+      <ul class="coach-reco">${a.reco.map(r=>`<li><span class="ri">${r.i}</span><span>${r.t}</span></li>`).join('')}</ul>
+      ${compact?'':'<p class="small mt">Mis à jour automatiquement selon tes séances, ton volume et ta nutrition.</p>'}
+    </div>`;
+  },
+  renderCoachAnalysis(){ const el=document.getElementById('coach-analysis'); if(el) el.innerHTML=this.coachCardHTML(this.coachAnalyze(),false); },
+  renderCoachInsight(){ const el=document.getElementById('coach-insight'); if(el) el.innerHTML=this.coachCardHTML(this.coachAnalyze(),true); },
 
   /* ---------- 3D BODY (Three.js) ---------- */
   buildMuscleChips(){
@@ -2511,6 +2596,7 @@ const App = {
     chat.innerHTML=s.coachHistory.map(m=>`<div class="msg ${m.r==='bot'?'bot':'me'}">${m.t}</div>`).join('');
     document.getElementById('quick-q').innerHTML=['Combien de protéines ?','Comment éviter un plateau ?','Analyse ma progression','Motive-moi','Conseils prise de masse'].map(q=>`<button onclick="App.coachQuick('${q}')">${q}</button>`).join('');
     chat.scrollTop=chat.scrollHeight;
+    this.renderCoachAnalysis();
   },
   coachQuick(q){document.getElementById('coach-input').value=q;this.coachSend();},
   async coachSend(){
