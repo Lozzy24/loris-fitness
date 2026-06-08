@@ -615,8 +615,10 @@ img{max-width:100%}
     <div class="section-label"><span class="dot blue"></span>Visualiseur musculaire 3D<span class="lbl-line"></span></div>
     <div class="card pad">
       <div id="body3d"></div>
-      <div class="chips mt" id="muscle-chips" style="margin-bottom:0"></div>
-      <p class="small mt">Touche un groupe musculaire → mise en évidence sur le modèle. Glisse pour faire pivoter le corps.</p>
+      <div class="field mt" style="margin-bottom:10px"><label>Voir un exercice en 3D</label><select class="input" id="body-exo-select" onchange="App.showExo3D(this.value)"></select></div>
+      <div class="small mb" id="body3d-label" style="text-align:center"></div>
+      <div class="chips" id="muscle-chips" style="margin-bottom:0"></div>
+      <p class="small mt">Choisis un exercice → ses muscles s'allument (principaux vifs, secondaires atténués). Glisse pour faire pivoter le corps.</p>
     </div>
 
     <div class="section-label"><span class="dot"></span>Records personnels<span class="lbl-line"></span></div>
@@ -849,7 +851,7 @@ img{max-width:100%}
         <button class="btn ghost block mb" onclick="App.exportData()">⬇️ Exporter mes données (JSON)</button>
         <button class="btn ghost block" onclick="App.resetData()" style="color:var(--red)">🗑️ Réinitialiser l'application</button>
       </div>
-      <p class="small mt">Loris Fitness Premium · v2.1 · mode séance plein écran · coach proactif · vidéos · auto-deploy ✓.</p>
+      <p class="small mt">Loris Fitness Premium · v2.2 · corps 3D par exercice · mode séance · coach proactif · auto-deploy ✓.</p>
     </div>
   </div>
 
@@ -1411,6 +1413,7 @@ const App = {
     this.buildTrainSubtabs();
     this.renderTraining();
     this.buildMuscleChips();
+    this.buildBodyExoSelect();
     this.init3D();
     this.renderDash();
     this.buildProgSelect();
@@ -1783,15 +1786,55 @@ const App = {
   },
   highlightMuscle(muscle,btn){
     if(btn){document.querySelectorAll('#muscle-chips .chip').forEach(c=>c.classList.remove('active'));btn.classList.add('active');}
+    document.getElementById('body3d-label').textContent='';
+    this.highlightMuscles(new Set([muscle]), new Set());
+  },
+  highlightMuscles(prim,sec){
     if(!this.body3d)return;
     const {parts}=this.body3d;
     Object.entries(parts).forEach(([m,meshes])=>{
-      const on=(m===muscle);
+      const isP=prim.has(m), isS=!isP&&sec.has(m);
       meshes.forEach(mesh=>{
-        mesh.material.color.set(on?0xe8ff3c:0x3a3a44);
-        mesh.material.emissive.set(on?0x4a5a10:0x000000);
+        mesh.material.color.set(isP?0xe8ff3c:(isS?0x6d6a1f:0x3a3a44));
+        mesh.material.emissive.set(isP?0x4a5a10:(isS?0x1a1a08:0x000000));
       });
     });
+  },
+  map3D(list){
+    const set=new Set();
+    (list||[]).forEach(raw=>{ const m=(raw||'').toLowerCase();
+      if(/pector/.test(m))set.add('Pectoraux');
+      if(/deltoïde|deltoide|épaule|epaule/.test(m))set.add('Deltoïdes');
+      if(/biceps|brachial/.test(m))set.add('Biceps');
+      if(/triceps/.test(m))set.add('Triceps');
+      if(/dorsal|trapèze|trapeze|rhombo/.test(m))set.add('Grand dorsal');
+      if(/abdo|gainage|oblique|lombaire/.test(m))set.add('Abdominaux');
+      if(/quadri/.test(m))set.add('Quadriceps');
+      if(/ischio/.test(m))set.add('Ischio-jambiers');
+      if(/fessier|glut|adduct/.test(m))set.add('Fessiers');
+    });
+    return set;
+  },
+  buildBodyExoSelect(){
+    const sel=document.getElementById('body-exo-select'); if(!sel)return;
+    const groups=[...PROGRAM.salle,...PROGRAM.maison];
+    sel.innerHTML='<option value="">— Choisir un exercice —</option>'+groups.map(g=>`<optgroup label="${g.title}">`+g.exos.map(e=>`<option value="${e.id}">${e.name.replace(/^\d+\.\s*/,'')}</option>`).join('')+'</optgroup>').join('');
+  },
+  viewExo3D(id){
+    document.querySelector('.nav-i[data-page="home"]').click();
+    const sel=document.getElementById('body-exo-select'); if(sel)sel.value=id;
+    this.showExo3D(id);
+    setTimeout(()=>{ const b=document.getElementById('body3d'); if(b)b.scrollIntoView({behavior:'smooth',block:'center'}); },200);
+  },
+  showExo3D(id){
+    if(!id){ this.highlightMuscle('Pectoraux'); document.getElementById('body3d-label').textContent=''; return; }
+    const e=this.exo(id); if(!e||!e.fiche)return;
+    const prim=this.map3D(e.fiche.primary), sec=this.map3D(e.fiche.secondary);
+    document.querySelectorAll('#muscle-chips .chip').forEach(c=>c.classList.remove('active'));
+    this.highlightMuscles(prim,sec);
+    const names=[...prim].join(', ');
+    document.getElementById('body3d-label').innerHTML=`<b style="color:var(--accent)">${e.name.replace(/^\d+\.\s*/,'')}</b> → ${names||'—'}`;
+    this.haptic(12);
   },
 
   /* ---------- TRAINING ---------- */
@@ -2048,7 +2091,7 @@ const App = {
           ${setsHtml}${tipHtml}
         </div>
         <div class="fpane" data-p="fiche">
-          <div class="fblock"><h5>Muscles travaillés</h5>${this.muscleMap(f.primary,f.secondary)}</div>
+          <div class="fblock"><h5>Muscles travaillés</h5>${this.muscleMap(f.primary,f.secondary)}<button class="btn ghost sm block mt" onclick="App.viewExo3D('${e.id}')">🧍 Voir sur le corps 3D</button></div>
           <div class="fblock"><h5>Description</h5><p>${f.desc}</p></div>
           <div class="fblock"><h5>Objectif</h5><p>${f.obj}</p></div>
           <div class="fblock"><h5>Muscles principaux</h5><div class="muscle-tags">${f.primary.map(m=>`<span class="mtag prim">${m}</span>`).join('')}</div></div>
