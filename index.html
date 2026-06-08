@@ -20,6 +20,7 @@
 <script defer src="vendor/chart.umd.min.js"></script>
 <script defer src="vendor/three.min.js"></script>
 <script defer src="vendor/html5-qrcode.min.js"></script>
+<script defer src="vendor/supabase.min.js"></script>
 
 <style>
 /* ============================================================
@@ -874,12 +875,15 @@ img{max-width:100%}
         <div class="field"><label>Clé API OpenAI (stockée en local)</label><input class="input" id="pf-key" type="password" placeholder="sk-..."></div>
         <button class="btn ghost block" onclick="App.saveKey()">Enregistrer la clé</button>
       </div>
+      <div class="section-label"><span class="dot blue"></span>Sync Cloud — Supabase<span class="lbl-line"></span></div>
+      <div class="card pad mb" id="cloud-panel"></div>
+
       <div class="section-label"><span class="dot blue"></span>Données<span class="lbl-line"></span></div>
       <div class="card pad">
         <button class="btn ghost block mb" onclick="App.exportData()">⬇️ Exporter mes données (JSON)</button>
         <button class="btn ghost block" onclick="App.resetData()" style="color:var(--red)">🗑️ Réinitialiser l'application</button>
       </div>
-      <p class="small mt">Loris Fitness Premium · v2.3 · historique & calendrier d'entraînement · 3D par exercice · auto-deploy ✓.</p>
+      <p class="small mt">Loris Fitness Premium · v2.4 · sync cloud Supabase (multi-appareils) · historique · 3D · auto-deploy ✓.</p>
     </div>
   </div>
 
@@ -1039,11 +1043,12 @@ const Store = (() => {
   };
   let state = load();
   function load(){ try{ return Object.assign(JSON.parse(JSON.stringify(def)), JSON.parse(localStorage.getItem(KEY))||{}); }catch(e){ return JSON.parse(JSON.stringify(def)); } }
-  function save(){ localStorage.setItem(KEY, JSON.stringify(state)); }
+  function save(){ localStorage.setItem(KEY, JSON.stringify(state)); if(typeof Cloud!=='undefined') Cloud.queuePush(); }
   return {
     get:()=>state,
     set:(fn)=>{ fn(state); save(); },
     save, reset:()=>{ localStorage.removeItem(KEY); state=JSON.parse(JSON.stringify(def)); },
+    replace:(obj)=>{ state=Object.assign(JSON.parse(JSON.stringify(def)), obj||{}); localStorage.setItem(KEY, JSON.stringify(state)); },
     export:()=>JSON.stringify(state,null,2)
   };
 })();
@@ -1396,6 +1401,61 @@ const Coach = {
   }
 };
 
+/* ---------- CLOUD : Supabase (auth + sync, credentials saisis en app) ---------- */
+const Cloud = {
+  client:null, user:null, autosync:true, _timer:null, _booted:false,
+  cfg(){ try{ return JSON.parse(localStorage.getItem('lf_supa')||'{}'); }catch(e){ return {}; } },
+  saveCfg(url,key){ localStorage.setItem('lf_supa', JSON.stringify({url,key})); },
+  ready(){ return !!this.client; },
+  libLoaded(){ return typeof supabase!=='undefined' && supabase.createClient; },
+  async init(){
+    this._booted=true;
+    this.autosync = localStorage.getItem('lf_autosync')!=='0';
+    const c=this.cfg();
+    if(c.url && c.key && this.libLoaded()){
+      try{
+        this.client=supabase.createClient(c.url,c.key,{auth:{persistSession:true,autoRefreshToken:true}});
+        const {data}=await this.client.auth.getSession();
+        this.user=data&&data.session?data.session.user:null;
+        this.client.auth.onAuthStateChange((_e,session)=>{ this.user=session?session.user:null; if(App.renderCloud)App.renderCloud(); });
+        if(this.user) this.pull(true);
+      }catch(e){ console.warn('Supabase init', e); }
+    }
+    if(App.renderCloud)App.renderCloud();
+  },
+  async configure(url,key){
+    url=(url||'').trim(); key=(key||'').trim();
+    if(!url||!key){UI.toast('⚠️','URL et clé anon requises');return;}
+    if(!this.libLoaded()){UI.toast('⚠️','Client cloud non chargé','Vérifie ta connexion puis recharge');return;}
+    this.saveCfg(url,key);
+    try{ this.client=supabase.createClient(url,key,{auth:{persistSession:true,autoRefreshToken:true}}); UI.toast('☁️','Supabase connecté','Crée ton compte ou connecte-toi'); }
+    catch(e){ UI.toast('⚠️','URL invalide'); }
+    App.renderCloud();
+  },
+  async signUp(email,pw){ if(!this.client){UI.toast('⚠️','Configure Supabase d\'abord');return;} const {data,error}=await this.client.auth.signUp({email,password:pw}); if(error){UI.toast('⚠️',error.message);return;} this.user=data.user||null; if(this.user){await this.push(true);} UI.toast('🎉','Compte créé','Sauvegarde cloud activée'); App.renderCloud(); },
+  async signIn(email,pw){ if(!this.client){UI.toast('⚠️','Configure Supabase d\'abord');return;} const {data,error}=await this.client.auth.signInWithPassword({email,password:pw}); if(error){UI.toast('⚠️',error.message);return;} this.user=data.user; UI.toast('✅','Connecté','Restauration…'); await this.pull(); App.renderCloud(); },
+  async signOut(){ if(!this.client)return; await this.client.auth.signOut(); this.user=null; UI.toast('👋','Déconnecté'); App.renderCloud(); },
+  async push(silent){
+    if(!this.client||!this.user)return;
+    try{
+      const {error}=await this.client.from('app_state').upsert({user_id:this.user.id,data:Store.get(),updated_at:new Date().toISOString()},{onConflict:'user_id'});
+      if(error){ if(!silent)UI.toast('⚠️','Sync échouée',error.message); return false; }
+      if(!silent)UI.toast('☁️','Sauvegardé dans le cloud'); return true;
+    }catch(e){ if(!silent)UI.toast('⚠️','Sync échouée'); return false; }
+  },
+  async pull(silent){
+    if(!this.client||!this.user)return;
+    try{
+      const {data,error}=await this.client.from('app_state').select('data').eq('user_id',this.user.id).maybeSingle();
+      if(error){ if(!silent)UI.toast('⚠️','Restauration échouée',error.message); return; }
+      if(data&&data.data){ Store.replace(data.data); if(App.refreshAll)App.refreshAll(); if(!silent)UI.toast('⬇️','Données restaurées du cloud'); }
+      else if(!silent)UI.toast('ℹ️','Aucune sauvegarde cloud','Utilise « Sauvegarder » pour en créer une');
+    }catch(e){ if(!silent)UI.toast('⚠️','Restauration échouée'); }
+  },
+  queuePush(){ if(!this.client||!this.user||!this.autosync)return; clearTimeout(this._timer); this._timer=setTimeout(()=>this.push(true),2500); },
+  toggleAuto(v){ this.autosync=v; localStorage.setItem('lf_autosync', v?'1':'0'); if(v)this.queuePush(); }
+};
+
 /* ---------- UI HELPERS ---------- */
 const UI = {
   toast(e,t,s,xp){
@@ -1461,6 +1521,7 @@ const App = {
     document.getElementById('greet').textContent=this.greet();
     document.querySelector('.hero-name').textContent=(Store.get().profile.name||'Loris').toUpperCase();
     if(!Store.get().onboarded) setTimeout(()=>this.showOnboarding(),500);
+    setTimeout(()=>{ try{ Cloud.init(); }catch(e){} }, 800);
   },
 
   greet(){ const h=new Date().getHours(); return h<12?'Bonjour 👋':h<18?'Bon après-midi 💪':'Bonsoir 🌙'; },
@@ -2812,6 +2873,7 @@ const App = {
     const pp=document.getElementById('pf-prot'), pl=document.getElementById('pf-lip');
     if(pp)pp.value=mo.prot; if(pl)pl.value=mo.lip;
     this.renderWeekPlanEditor();
+    this.renderCloud();
   },
   saveProfile(){
     const cur=+document.getElementById('pf-cur').value,goal=+document.getElementById('pf-goal').value;
@@ -2832,6 +2894,44 @@ const App = {
     UI.toast('✅','Objectifs nutrition enregistrés'); this.renderNutrition();
   },
   saveKey(){Store.set(s=>s.openaiKey=document.getElementById('pf-key').value.trim());UI.toast('🔑','Clé OpenAI enregistrée','Coach IA avancé activé');},
+
+  /* ---------- CLOUD UI ---------- */
+  renderCloud(){
+    const el=document.getElementById('cloud-panel'); if(!el)return;
+    const c=Cloud.cfg();
+    if(!Cloud.libLoaded()){ el.innerHTML='<p class="small">Client cloud non chargé (hors-ligne ?). La synchronisation sera disponible une fois en ligne.</p>'; return; }
+    if(!Cloud.client){
+      el.innerHTML=`<p class="small mb">Connecte ton projet Supabase pour sauvegarder et synchroniser tes données entre appareils. Colle d'abord le SQL de <b>SUPABASE_SETUP.md</b> (une seule fois).</p>
+        <div class="field"><label>Project URL</label><input class="input" id="supa-url" placeholder="https://xxxx.supabase.co" value="${(c.url||'').replace(/"/g,'&quot;')}"></div>
+        <div class="field"><label>Clé anon (public)</label><input class="input" id="supa-key" placeholder="eyJhbGci..." value="${(c.key||'').replace(/"/g,'&quot;')}"></div>
+        <button class="btn block" onclick="App.cloudConnect()">Connecter</button>`;
+      return;
+    }
+    if(!Cloud.user){
+      el.innerHTML=`<p class="small mb">✅ Projet connecté. Crée un compte ou connecte-toi pour synchroniser.</p>
+        <div class="field"><label>Email</label><input class="input" id="supa-email" type="email" placeholder="toi@mail.com"></div>
+        <div class="field"><label>Mot de passe</label><input class="input" id="supa-pw" type="password" placeholder="••••••••"></div>
+        <div class="flex gap"><button class="btn block" onclick="App.cloudSignIn()">Se connecter</button><button class="btn ghost block" onclick="App.cloudSignUp()">Créer un compte</button></div>
+        <button class="btn ghost block mt" onclick="App.cloudReset()">Changer de projet</button>`;
+      return;
+    }
+    el.innerHTML=`<div class="flex center gap mb"><div style="font-size:24px">☁️</div><div style="flex:1"><div style="font-weight:800;font-size:13px">Synchronisé</div><div class="small">${Cloud.user.email||''}</div></div></div>
+      <div class="flex gap mb"><button class="btn block" onclick="Cloud.push()">⬆️ Sauvegarder</button><button class="btn ghost block" onclick="Cloud.pull()">⬇️ Restaurer</button></div>
+      <label class="flex center gap mb" style="font-size:12.5px;cursor:pointer"><input type="checkbox" id="supa-auto" ${Cloud.autosync?'checked':''} onchange="Cloud.toggleAuto(this.checked)" style="width:18px;height:18px"> Sauvegarde automatique</label>
+      <button class="btn ghost block" onclick="App.cloudSignOut()" style="color:var(--red)">Se déconnecter</button>`;
+  },
+  cloudConnect(){ Cloud.configure(document.getElementById('supa-url').value, document.getElementById('supa-key').value); },
+  cloudSignIn(){ Cloud.signIn(document.getElementById('supa-email').value, document.getElementById('supa-pw').value); },
+  cloudSignUp(){ Cloud.signUp(document.getElementById('supa-email').value, document.getElementById('supa-pw').value); },
+  cloudSignOut(){ Cloud.signOut(); },
+  cloudReset(){ localStorage.removeItem('lf_supa'); Cloud.client=null; Cloud.user=null; this.renderCloud(); UI.toast('↺','Projet réinitialisé'); },
+  refreshAll(){
+    try{
+      UI.refreshHeader(); this.renderDash(); this.renderTraining(); this.renderNutrition();
+      this.renderBody(); this.renderBodyCharts(); this.renderAchievements(); this.renderCoach(); this.loadProfileInputs(); this.buildBodyExoSelect();
+      if(document.getElementById('p-prog').classList.contains('active'))this.renderProgCharts();
+    }catch(e){ console.warn('refreshAll', e); }
+  },
   /* ---------- ONBOARDING ---------- */
   showOnboarding(){
     const s=Store.get();

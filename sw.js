@@ -1,5 +1,5 @@
 /* Loris Fitness — Service Worker (offline-first) */
-const CACHE = 'lorisfit-v16';
+const CACHE = 'lorisfit-v17';
 const ASSETS = [
   './',
   './index.html',
@@ -7,6 +7,7 @@ const ASSETS = [
   './vendor/three.min.js',
   './vendor/chart.umd.min.js',
   './vendor/html5-qrcode.min.js',
+  './vendor/supabase.min.js',
   './icons/icon-192.png',
   './icons/icon-512.png',
   './icons/apple-touch-icon.png'
