@@ -1,5 +1,5 @@
 /* Loris Fitness — Service Worker (offline-first) */
-const CACHE = 'lorisfit-v17';
+const CACHE = 'lorisfit-v18';
 const ASSETS = [
   './',
   './index.html',

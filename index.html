@@ -1432,8 +1432,8 @@ const Cloud = {
     catch(e){ UI.toast('⚠️','URL invalide'); }
     App.renderCloud();
   },
-  async signUp(email,pw){ if(!this.client){UI.toast('⚠️','Configure Supabase d\'abord');return;} const {data,error}=await this.client.auth.signUp({email,password:pw}); if(error){UI.toast('⚠️',error.message);return;} this.user=data.user||null; if(this.user){await this.push(true);} UI.toast('🎉','Compte créé','Sauvegarde cloud activée'); App.renderCloud(); },
-  async signIn(email,pw){ if(!this.client){UI.toast('⚠️','Configure Supabase d\'abord');return;} const {data,error}=await this.client.auth.signInWithPassword({email,password:pw}); if(error){UI.toast('⚠️',error.message);return;} this.user=data.user; UI.toast('✅','Connecté','Restauration…'); await this.pull(); App.renderCloud(); },
+  async signUp(email,pw){ if(!this.client){UI.toast('⚠️','Configure Supabase d\'abord');return;} email=(email||'').trim(); if(!email||!/.+@.+\..+/.test(email)){UI.toast('⚠️','Email requis');return;} if(!pw||pw.length<6){UI.toast('⚠️','Mot de passe ≥ 6 caractères');return;} const {data,error}=await this.client.auth.signUp({email,password:pw}); if(error){UI.toast('⚠️',error.message);return;} this.user=data.user||null; if(this.user){await this.push(true);} UI.toast('🎉','Compte créé','Sauvegarde cloud activée'); App.renderCloud(); },
+  async signIn(email,pw){ if(!this.client){UI.toast('⚠️','Configure Supabase d\'abord');return;} email=(email||'').trim(); if(!email||!pw){UI.toast('⚠️','Email et mot de passe requis');return;} const {data,error}=await this.client.auth.signInWithPassword({email,password:pw}); if(error){UI.toast('⚠️',error.message);return;} this.user=data.user; UI.toast('✅','Connecté','Restauration…'); await this.pull(); App.renderCloud(); },
   async signOut(){ if(!this.client)return; await this.client.auth.signOut(); this.user=null; UI.toast('👋','Déconnecté'); App.renderCloud(); },
   async push(silent){
     if(!this.client||!this.user)return;
