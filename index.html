@@ -510,6 +510,27 @@ img{max-width:100%}
 .chart-box h4{font-size:12px;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin-bottom:12px;font-weight:600}
 .chart-box canvas{max-height:200px}
 
+/* TRAINING CALENDAR */
+.cal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.cal-head .cm{font-weight:700;font-size:14px;text-transform:capitalize}
+.cal-head button{width:32px;height:32px;border-radius:9px;background:var(--surface);border:1px solid var(--border);color:var(--text);font-size:14px}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:5px}
+.cal-dow{font-size:9px;color:var(--muted);text-align:center;text-transform:uppercase;letter-spacing:.5px;padding-bottom:2px}
+.cal-cell{aspect-ratio:1;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--muted);background:var(--surface);position:relative}
+.cal-cell.empty{background:transparent}
+.cal-cell.train{background:rgba(232,255,60,.16);color:var(--accent);font-weight:700;border:1px solid rgba(232,255,60,.3)}
+.cal-cell.train.maison{background:rgba(255,92,26,.14);color:var(--accent2);border-color:rgba(255,92,26,.3)}
+.cal-cell.today{outline:2px solid var(--text);outline-offset:1px}
+.cal-legend{display:flex;gap:14px;justify-content:center;margin-top:10px;font-size:10px;color:var(--muted)}
+.cal-legend i{display:inline-block;width:9px;height:9px;border-radius:3px;margin-right:4px;vertical-align:middle}
+.sess{display:flex;align-items:center;gap:12px;background:var(--card);border:1px solid var(--border);border-radius:12px;padding:11px 13px;margin-bottom:8px}
+.sess .se{width:40px;height:40px;border-radius:11px;background:var(--surface);display:flex;align-items:center;justify-content:center;font-size:19px;flex-shrink:0}
+.sess .si{flex:1;min-width:0}
+.sess .sn{font-weight:700;font-size:13px}
+.sess .sd{font-size:11px;color:var(--muted);margin-top:2px}
+.sess .sm{text-align:right;font-size:11px;color:var(--muted)}
+.sess .sm b{display:block;font-family:'Bebas Neue';font-size:18px;color:var(--accent)}
+
 /* empty state */
 .empty{text-align:center;padding:30px 16px;color:var(--muted);font-size:13px}
 .empty .e{font-size:38px;margin-bottom:10px}
@@ -651,6 +672,13 @@ img{max-width:100%}
       <div class="page-sub">Évolution des charges, volume et tonnage. Tes records battus.</div>
     </div>
     <div class="stat-grid three" id="prog-stats"></div>
+
+    <div class="section-label mt"><span class="dot blue"></span>Calendrier d'entraînement<span class="lbl-line"></span></div>
+    <div class="card pad mb"><div id="train-calendar"></div></div>
+
+    <div class="section-label"><span class="dot"></span>Historique des séances<span class="lbl-line"></span></div>
+    <div id="session-history" class="mb"></div>
+
     <div class="section-label mt"><span class="dot"></span>Choisir un exercice<span class="lbl-line"></span></div>
     <select class="input mb" id="prog-select" onchange="App.renderProgCharts()"></select>
     <div class="chart-box"><h4>Évolution charge (kg)</h4><canvas id="chart-load"></canvas></div>
@@ -851,7 +879,7 @@ img{max-width:100%}
         <button class="btn ghost block mb" onclick="App.exportData()">⬇️ Exporter mes données (JSON)</button>
         <button class="btn ghost block" onclick="App.resetData()" style="color:var(--red)">🗑️ Réinitialiser l'application</button>
       </div>
-      <p class="small mt">Loris Fitness Premium · v2.2 · corps 3D par exercice · mode séance · coach proactif · auto-deploy ✓.</p>
+      <p class="small mt">Loris Fitness Premium · v2.3 · historique & calendrier d'entraînement · 3D par exercice · auto-deploy ✓.</p>
     </div>
   </div>
 
@@ -1006,7 +1034,8 @@ const Store = (() => {
     questClaims:{daily:{date:'',ids:[]},weekly:{week:'',ids:[]}}, // claimed quest ids per period
     weekPlan:['pecs','rest','dos','rest','epaules','jambes','rest'], // Mon..Sun training plan (editable)
     macroOverride:{prot:2.0,lip:1.0}, // g/kg targets (editable)
-    onboarded:false
+    onboarded:false,
+    sessions:[] // [{date,group,title,sets,volume,dur}]
   };
   let state = load();
   function load(){ try{ return Object.assign(JSON.parse(JSON.stringify(def)), JSON.parse(localStorage.getItem(KEY))||{}); }catch(e){ return JSON.parse(JSON.stringify(def)); } }
@@ -2336,6 +2365,8 @@ const App = {
         const y=new Date(Date.now()-86400000).toISOString().slice(0,10);
         st.streak=(st.lastWorkoutDate===y)?st.streak+1:1; st.lastWorkoutDate=today;
       }
+      st.sessions=st.sessions||[];
+      st.sessions.push({date:today,group:g.id,title:g.title,sets:done,volume:Math.round((st.daily[today]&&st.daily[today].volume)||0),dur});
       st.__checks={};
     });
     this.bumpDaily('workouts',1);
@@ -2361,7 +2392,33 @@ const App = {
     const opts=Object.values(EXO_INDEX).map(e=>`<option value="${e.id}">${e.name.replace(/^\d+\.\s*/,'')} (${e.groupTitle.split(' ')[0]})</option>`).join('');
     sel.innerHTML=opts;
   },
+  renderHistory(){
+    this.renderCalendar();
+    const sess=(Store.get().sessions||[]).slice().reverse().slice(0,20);
+    const el=document.getElementById('session-history'); if(!el)return;
+    const emo={pecs:'💪',dos:'🏋️',epaules:'🦾',jambes:'🦵',maisonA:'🏠',maisonB:'🏠',maisonC:'🏠'};
+    el.innerHTML=sess.length?sess.map(x=>`<div class="sess"><div class="se">${emo[x.group]||'🏋️'}</div><div class="si"><div class="sn">${x.title}</div><div class="sd">${new Date(x.date).toLocaleDateString('fr-FR',{weekday:'short',day:'numeric',month:'short'})} • ${Math.round((x.dur||0)/60)} min</div></div><div class="sm"><b>${x.sets}</b>séries${x.volume?'<br>'+(x.volume/1000).toFixed(1)+'t':''}</div></div>`).join(''):'<div class="empty"><div class="e">📅</div>Aucune séance terminée. Lance le mode séance et termine-la !</div>';
+  },
+  renderCalendar(){
+    const el=document.getElementById('train-calendar'); if(!el)return;
+    const now=new Date(); const base=new Date(now.getFullYear(),now.getMonth()+(this.calOffset||0),1);
+    const y=base.getFullYear(), mo=base.getMonth();
+    const first=(new Date(y,mo,1).getDay()+6)%7; const days=new Date(y,mo+1,0).getDate();
+    const s=Store.get(); const byDate={};
+    Object.keys(s.weekDone||{}).forEach(d=>{byDate[d]=s.weekDone[d];});
+    (s.sessions||[]).forEach(x=>{byDate[x.date]=x.group;});
+    const t=new Date(); const todayISO=t.getFullYear()+'-'+String(t.getMonth()+1).padStart(2,'0')+'-'+String(t.getDate()).padStart(2,'0');
+    let cells=''; for(let i=0;i<first;i++)cells+='<div class="cal-cell empty"></div>';
+    for(let d=1;d<=days;d++){ const iso=y+'-'+String(mo+1).padStart(2,'0')+'-'+String(d).padStart(2,'0'); const g=byDate[iso]; const maison=(g&&g.indexOf('maison')===0)?'maison':''; const cls=g?('train '+maison):''; const today=(iso===todayISO)?'today':''; cells+=`<div class="cal-cell ${cls} ${today}">${d}</div>`; }
+    const dow=['L','M','M','J','V','S','D'].map(x=>`<div class="cal-dow">${x}</div>`).join('');
+    el.innerHTML=`<div class="cal-head"><button onclick="App.calMove(-1)">‹</button><div class="cm">${base.toLocaleDateString('fr-FR',{month:'long',year:'numeric'})}</div><button onclick="App.calMove(1)">›</button></div>
+      <div class="cal-grid">${dow}</div><div class="cal-grid" style="margin-top:5px">${cells}</div>
+      <div class="cal-legend"><span><i style="background:rgba(232,255,60,.5)"></i>Salle</span><span><i style="background:rgba(255,92,26,.5)"></i>Maison</span></div>`;
+  },
+  calMove(d){ this.calOffset=(this.calOffset||0)+d; this.renderCalendar(); this.haptic(8); },
+
   renderProgCharts(){
+    this.renderHistory();
     if(typeof Chart==='undefined'){return setTimeout(()=>this.renderProgCharts(),400);}
     const s=Store.get();
     // top stats
