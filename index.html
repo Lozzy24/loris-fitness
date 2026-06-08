@@ -776,10 +776,19 @@ img{max-width:100%}
     </div>
 
     <div class="chips" id="more-tabs">
-      <button class="chip active" data-mt="calc">🧮 Calculateurs</button>
+      <button class="chip active" data-mt="guide">📖 Guide</button>
+      <button class="chip" data-mt="calc">🧮 Calculateurs</button>
       <button class="chip" data-mt="ach">🏆 Succès</button>
       <button class="chip" data-mt="coach">🤖 Coach IA</button>
       <button class="chip" data-mt="profile">⚙️ Profil</button>
+    </div>
+
+    <!-- GUIDE -->
+    <div id="mt-guide">
+      <div class="card pad mb" style="background:radial-gradient(120% 120% at 0% 0%,rgba(232,255,60,.1),transparent 55%),var(--card)">
+        <div class="flex center gap"><div style="font-size:30px">📖</div><div><div style="font-weight:800">Bienvenue dans Loris Fitness</div><div class="small">Ton appli prise de masse tout-en-un. Voici comment l'utiliser.</div></div></div>
+      </div>
+      <div id="guide-list"></div>
     </div>
 
     <!-- CALCULATORS -->
@@ -883,7 +892,7 @@ img{max-width:100%}
         <button class="btn ghost block mb" onclick="App.exportData()">⬇️ Exporter mes données (JSON)</button>
         <button class="btn ghost block" onclick="App.resetData()" style="color:var(--red)">🗑️ Réinitialiser l'application</button>
       </div>
-      <p class="small mt">Loris Fitness Premium · v2.4 · sync cloud Supabase (multi-appareils) · historique · 3D · auto-deploy ✓.</p>
+      <p class="small mt">Loris Fitness Premium · v1.0 (prête à l'emploi) · guide intégré · sync cloud · mode séance · coach · 3D · vidéos.</p>
     </div>
   </div>
 
@@ -2794,11 +2803,38 @@ const App = {
   bindMore(){
     document.querySelectorAll('#more-tabs .chip').forEach(c=>c.onclick=()=>{
       document.querySelectorAll('#more-tabs .chip').forEach(x=>x.classList.remove('active'));c.classList.add('active');
-      ['calc','ach','coach','profile'].forEach(t=>document.getElementById('mt-'+t).style.display=(t===c.dataset.mt?'block':'none'));
+      ['guide','calc','ach','coach','profile'].forEach(t=>document.getElementById('mt-'+t).style.display=(t===c.dataset.mt?'block':'none'));
       if(c.dataset.mt==='ach')this.renderAchievements();
+      if(c.dataset.mt==='profile')this.renderCloud();
     });
+    document.getElementById('mt-calc').style.display='none';
     document.querySelectorAll('#c-sex button').forEach(b=>b.onclick=()=>{document.querySelectorAll('#c-sex button').forEach(x=>x.classList.remove('active'));b.classList.add('active');});
     document.getElementById('c-activity').onchange=e=>{Store.set(s=>s.__activity=+e.target.value);this.renderNutrition();};
+    this.renderGuide();
+  },
+  openGuide(){
+    this.go('more', document.querySelector('.nav-i[data-page="more"]'));
+    document.querySelectorAll('#more-tabs .chip').forEach(x=>x.classList.toggle('active',x.dataset.mt==='guide'));
+    ['guide','calc','ach','coach','profile'].forEach(t=>document.getElementById('mt-'+t).style.display=(t==='guide'?'block':'none'));
+  },
+  renderGuide(){
+    const el=document.getElementById('guide-list'); if(!el)return;
+    const G=[
+      {ic:'🧭',t:'Navigation',b:'6 onglets en bas : <b>Accueil</b> (résumé du jour), <b>Training</b> (tes programmes), <b>Progrès</b> (courbes + historique), <b>Masse</b> (mesures/photos), <b>Nutrition</b>, <b>Outils</b>.'},
+      {ic:'🏋️',t:'S\'entraîner (mode séance)',b:'Accueil → <b>Séance du jour</b> → <b>Démarrer</b>, ou Training → <b>▶ Démarrer en mode séance</b>. Plein écran : un exercice à la fois, coche tes séries (gros bouton ✓), le repos démarre tout seul, l\'app passe à l\'exo suivant. À la fin → <b>Terminer</b> → célébration + XP.'},
+      {ic:'🎚️',t:'Adapter un exercice',b:'Ouvre un exercice → onglet <b>ADAPTER</b>. Trop dur ? touche <b>😣 Pas réussi</b> → l\'app te propose une version plus facile. <b>💪 Trop facile</b> → plus dur. Tu peux aussi <b>remplacer</b>, <b>modifier</b> (nom/séries), régler la <b>charge cible</b>, ou <b>ajouter/retirer</b> un exercice.'},
+      {ic:'📊',t:'Suivre tes performances',b:'Dans un exercice → onglet <b>PERFORMANCE</b> : entre poids × reps × séries → <b>Enregistrer</b>. L\'app garde l\'historique, détecte tes <b>records</b>, et te donne une <b>reco de charge</b> (surcharge progressive). Vois tout dans <b>Progrès</b>.'},
+      {ic:'🍽️',t:'Nutrition',b:'Nutrition → touche un repas → <b>＋ Ajouter un aliment</b> : <b>Manuel</b>, <b>Scan</b> (code-barres → produit auto via OpenFoodFacts), ou <b>Photo IA</b> (photo du repas → calories/macros estimées, nécessite clé OpenAI). Suis tes macros du jour (calories/protéines/glucides/lipides).'},
+      {ic:'📷',t:'Vidéos & 3D',b:'Chaque exercice → onglet <b>VIDÉO</b> : démo intégrée (touche la miniature). Onglet <b>FICHE</b> : schéma musculaire avant/arrière + bouton <b>Voir sur le corps 3D</b>. Sur l\'Accueil, choisis un exercice pour l\'allumer sur le modèle 3D.'},
+      {ic:'⚖️',t:'Prise de masse',b:'Onglet <b>Masse</b> : enregistre poids + mensurations (bras, poitrine…), photos <b>avant/après</b> (slider), et vois la <b>prévision</b> de ta date d\'objectif.'},
+      {ic:'🎯',t:'Quêtes, niveaux & succès',b:'Accueil : <b>quêtes du jour/semaine</b> (valide-les pour de l\'XP). Tu montes de <b>niveau</b>, débloques des <b>succès</b> et des <b>rangs</b> (Outils → Succès). Garde ta <b>série</b> (streak) en t\'entraînant régulièrement.'},
+      {ic:'🤖',t:'Coach IA',b:'Outils → Coach : <b>bilan de la semaine</b> automatique (score + conseils prise de masse). Pose des questions au chat. Optionnel : ajoute une clé <b>OpenAI</b> (Profil) pour des réponses GPT.'},
+      {ic:'☁️',t:'Sauvegarde cloud',b:'Outils → Profil → <b>Sync Cloud</b> : connecte-toi → tes données sont sauvegardées et synchronisées sur tous tes appareils. Boutons <b>Sauvegarder</b> / <b>Restaurer</b>, et auto-sync.'},
+      {ic:'⚙️',t:'Tout est personnalisable',b:'Profil : modifie ton <b>objectif de poids</b>, ton <b>planning de la semaine</b> (quel groupe quel jour), tes <b>objectifs nutrition</b> (g/kg). Exporte tes données en JSON quand tu veux.'},
+      {ic:'📲',t:'Installer comme une app',b:'iPhone (Safari) : bouton Partager ⬆️ → <b>Sur l\'écran d\'accueil</b>. Android (Chrome) : menu ⋮ → <b>Installer</b>. Ensuite lance via l\'icône → plein écran + hors-ligne.'},
+    ];
+    el.innerHTML=G.map(g=>`<div class="exo"><div class="exo-h" onclick="App.toggleCard(this)"><div class="exo-ic salle">${g.ic}</div><div class="exo-i"><div class="exo-n">${g.t}</div></div><div class="chev">⌄</div></div><div class="exo-b"><div class="tip" style="margin-top:10px">${g.b}</div></div></div>`).join('')
+      +`<div class="card pad mt" style="text-align:center"><div class="small mb">Besoin du détail technique ? Tout est documenté dans le repo.</div><div class="small">README · ARCHITECTURE · SUPABASE_SETUP · SERVICES</div></div>`;
   },
 
   /* ---------- CALCULATORS ---------- */
@@ -2952,6 +2988,7 @@ const App = {
     document.getElementById('hero-lvl'); document.querySelector('.hero-name').textContent=name.toUpperCase();
     this.haptic(40); UI.toast('🎯','Profil configuré','Calculs personnalisés activés');
     this.renderDash(); this.renderNutrition(); this.renderBody(); this.loadProfileInputs();
+    setTimeout(()=>{ this.openGuide(); UI.toast('📖','Découvre le guide','Comment utiliser l\'app'); },400);
   },
   skipOnboarding(){ Store.set(s=>s.onboarded=true); document.getElementById('onboard').classList.remove('show'); },
   exportData(){
