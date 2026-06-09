@@ -892,7 +892,7 @@ img{max-width:100%}
         <button class="btn ghost block mb" onclick="App.exportData()">⬇️ Exporter mes données (JSON)</button>
         <button class="btn ghost block" onclick="App.resetData()" style="color:var(--red)">🗑️ Réinitialiser l'application</button>
       </div>
-      <p class="small mt">Loris Fitness Premium · v1.0 (prête à l'emploi) · guide intégré · sync cloud · mode séance · coach · 3D · vidéos.</p>
+      <p class="small mt">Loris Fitness Premium · v1.0.1 · scan code-barres optimisé (focus rapide) · guide · sync cloud · mode séance.</p>
     </div>
   </div>
 
@@ -2701,14 +2701,23 @@ const App = {
   startScan(){
     if(typeof Html5Qrcode==='undefined'){ document.getElementById('scan-status').textContent='Scanner en cours de chargement, réessaie dans 1 sec.'; return; }
     this.stopScan();
-    const st=document.getElementById('scan-status'); st.textContent='Caméra en cours…';
+    const st=document.getElementById('scan-status'); st.textContent='Caméra… vise le code-barres (~15 cm, bonne lumière).';
     document.getElementById('scan-start').style.display='none';
+    // formats code-barres uniquement => décodage plus rapide
+    let formats; try{ const F=Html5QrcodeSupportedFormats; formats=[F.EAN_13,F.EAN_8,F.UPC_A,F.UPC_E,F.CODE_128,F.CODE_39,F.ITF].filter(x=>x!=null); }catch(e){ formats=undefined; }
     try{
-      this.scanner=new Html5Qrcode('reader',{verbose:false});
-      this.scanner.start({facingMode:'environment'},{fps:10,qrbox:{width:260,height:170}},
-        (txt)=>{ if(/^\d{6,14}$/.test(txt)){ if(navigator.vibrate)navigator.vibrate(120); this.stopScan(); this.offLookup(txt); } },
-        ()=>{}
-      ).catch(e=>{ st.textContent='Caméra refusée. Autorise l\'accès ou saisis le code à la main.'; document.getElementById('scan-start').style.display='block'; });
+      this.scanner=new Html5Qrcode('reader',{verbose:false, formatsToSupport:formats, useBarCodeDetectorIfSupported:true});
+      // contraintes caméra : focus continu + haute résolution => mise au point rapide
+      const camera={ facingMode:'environment', width:{ideal:1920}, height:{ideal:1080}, focusMode:'continuous', advanced:[{focusMode:'continuous'},{focusMode:'auto'}] };
+      const config={ fps:18, qrbox:(vw,vh)=>{ const w=Math.min((vw||300)*0.92, 380); return {width:Math.round(w), height:Math.round(w*0.52)}; }, aspectRatio:1.7777,
+        experimentalFeatures:{ useBarCodeDetectorIfSupported:true }, formatsToSupport:formats, disableFlip:true };
+      const onHit=(txt)=>{ if(/^\d{6,14}$/.test(txt)){ if(navigator.vibrate)navigator.vibrate(120); this.stopScan(); this.offLookup(txt); } };
+      this.scanner.start(camera, config, onHit, ()=>{})
+        .catch(()=>{ // repli si contraintes avancées refusées
+          try{ this.scanner=new Html5Qrcode('reader',{verbose:false}); this.scanner.start({facingMode:'environment'},{fps:15,qrbox:{width:300,height:170},disableFlip:true},onHit,()=>{})
+            .catch(()=>{ st.textContent='Caméra refusée. Autorise l\'accès ou saisis le code à la main.'; document.getElementById('scan-start').style.display='block'; }); }
+          catch(e){ st.textContent='Scanner indisponible. Saisis le code à la main.'; document.getElementById('scan-start').style.display='block'; }
+        });
     }catch(e){ st.textContent='Scanner indisponible. Saisis le code à la main.'; document.getElementById('scan-start').style.display='block'; }
   },
   stopScan(){
