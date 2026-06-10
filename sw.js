@@ -1,5 +1,7 @@
-/* Loris Fitness — Service Worker (offline-first) */
-const CACHE = 'lorisfit-v22';
+/* Loris Fitness — Service Worker
+   Stratégie : network-first pour la page (toujours la dernière version en ligne),
+   cache-first pour les librairies/assets (rapide + offline). */
+const CACHE = 'lorisfit-v23';
 const ASSETS = [
   './',
   './index.html',
@@ -26,6 +28,24 @@ self.addEventListener('activate', e => {
 
 self.addEventListener('fetch', e => {
   if (e.request.method !== 'GET') return;
+  const url = new URL(e.request.url);
+  const isDoc = e.request.mode === 'navigate'
+    || url.pathname.endsWith('/')
+    || url.pathname.endsWith('index.html');
+
+  if (isDoc) {
+    // NETWORK-FIRST : prend la dernière version si en ligne, sinon le cache (offline)
+    e.respondWith(
+      fetch(e.request).then(resp => {
+        const copy = resp.clone();
+        caches.open(CACHE).then(c => c.put('./index.html', copy)).catch(() => {});
+        return resp;
+      }).catch(() => caches.match(e.request).then(r => r || caches.match('./index.html')))
+    );
+    return;
+  }
+
+  // CACHE-FIRST pour les assets (librairies, icônes, manifest)
   e.respondWith(
     caches.match(e.request).then(cached => {
       if (cached) return cached;
