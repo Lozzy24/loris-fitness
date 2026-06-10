@@ -338,6 +338,15 @@ img{max-width:100%}
 .fav-chips::-webkit-scrollbar{display:none}
 .fav-chip{flex-shrink:0;padding:8px 12px;border-radius:20px;background:var(--card);border:1px solid var(--border);font-size:12px;font-weight:600;display:flex;align-items:center;gap:6px;white-space:nowrap}
 .fav-chip .k{color:var(--muted);font-size:10px}
+.fav-top-box{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:12px;margin-bottom:14px}
+.fav-top-box .ft-h{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.fav-top-box .ft-h .t{font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);font-weight:700}
+.fav-list{display:flex;flex-direction:column;gap:6px;max-height:200px;overflow:auto}
+.fav-row{display:flex;align-items:center;gap:10px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:9px 11px}
+.fav-row .fn{flex:1;min-width:0;font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fav-row .fk{font-size:10.5px;color:var(--muted);white-space:nowrap}
+.fav-row .add{width:32px;height:32px;border-radius:9px;background:var(--accent);color:#111;font-size:18px;font-weight:800;flex-shrink:0;display:flex;align-items:center;justify-content:center}
+.fav-row .rm{width:28px;height:28px;border-radius:8px;background:transparent;color:var(--muted2);font-size:14px;flex-shrink:0}
 #reader{width:100%;border-radius:14px;overflow:hidden;margin-bottom:10px;background:#000}
 #reader video{border-radius:14px}
 .scan-status{font-size:12.5px;color:var(--muted);text-align:center;margin:8px 0;line-height:1.5}
@@ -892,7 +901,7 @@ img{max-width:100%}
         <button class="btn ghost block mb" onclick="App.exportData()">⬇️ Exporter mes données (JSON)</button>
         <button class="btn ghost block" onclick="App.resetData()" style="color:var(--red)">🗑️ Réinitialiser l'application</button>
       </div>
-      <p class="small mt">Loris Fitness Premium · v1.0.1 · scan code-barres optimisé (focus rapide) · guide · sync cloud · mode séance.</p>
+      <p class="small mt">Loris Fitness Premium · v1.0.2 · favoris cliquables · valeurs scan corrigeables · scan auto · guide · sync cloud.</p>
     </div>
   </div>
 
@@ -943,6 +952,7 @@ img{max-width:100%}
 <div id="foodSheet" class="sheet-back">
   <div class="sheet">
     <div class="sheet-head"><div class="sheet-title" id="sheet-title">Ajouter un aliment</div><button onclick="App.closeFoodSheet()">✕</button></div>
+    <div id="fav-top"></div>
     <div class="seg" id="food-method" style="margin-bottom:14px">
       <button data-m="manual" class="active" onclick="App.setFoodMethod('manual')">✍️ Manuel</button>
       <button data-m="scan" onclick="App.setFoodMethod('scan')">📷 Scan</button>
@@ -2657,7 +2667,7 @@ const App = {
     ['f-name','f-qty','f-kcal','f-p','f-c','f-f'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
     document.getElementById('scan-result').innerHTML=''; document.getElementById('photo-result').innerHTML='';
     document.getElementById('sheet-title').textContent='Ajouter — '+({matin:'Petit-déj',midi:'Midi',colla:'Collation',soir:'Soir'}[slot]||'');
-    this.renderFavs();
+    this.renderFavTop(); this.renderFavs();
     document.getElementById('foodSheet').classList.add('show');
   },
   closeFoodSheet(){ this.stopScan(); document.getElementById('foodSheet').classList.remove('show'); },
@@ -2667,11 +2677,30 @@ const App = {
     document.getElementById('fm-scan').style.display=m==='scan'?'block':'none';
     document.getElementById('fm-photo').style.display=m==='photo'?'block':'none';
     if(m!=='scan') this.stopScan();
+    else setTimeout(()=>{ if(document.getElementById('fm-scan').style.display!=='none' && !this.scanner) this.startScan(); },150); // auto-démarrage caméra
   },
+  upsertFav(item){
+    if(!item||!item.name)return;
+    Store.set(s=>{ s.foodFavorites=s.foodFavorites.filter(x=>x.name.toLowerCase()!==item.name.toLowerCase()); s.foodFavorites.unshift({name:item.name,qty:item.qty||null,kcal:Math.round(item.kcal||0),p:Math.round(item.p||0),c:Math.round(item.c||0),f:Math.round(item.f||0)}); if(s.foodFavorites.length>40)s.foodFavorites.length=40; });
+  },
+  renderFavTop(){
+    const favs=Store.get().foodFavorites||[]; const z=document.getElementById('fav-top'); if(!z)return;
+    if(!favs.length){ z.innerHTML=''; return; }
+    z.innerHTML=`<div class="fav-top-box"><div class="ft-h"><div class="t">⭐ Tes aliments — 1 tap pour ajouter</div></div><div class="fav-list">${favs.map((f,i)=>`<div class="fav-row"><div class="fn">${f.name}</div><div class="fk">${f.qty?f.qty+'g · ':''}${Math.round(f.kcal)}kcal · ${Math.round(f.p||0)}P</div><button class="rm" onclick="App.removeFav(${i})" title="retirer">✕</button><button class="add" onclick="App.quickAddFav(${i})">＋</button></div>`).join('')}</div></div>`;
+  },
+  quickAddFav(i){
+    const f=Store.get().foodFavorites[i]; if(!f)return;
+    const date=new Date().toISOString().slice(0,10); const slot=this.curSlot||'midi';
+    Store.set(s=>{ s.nutrition[date]=s.nutrition[date]||{meals:{matin:[],midi:[],colla:[],soir:[]}}; s.nutrition[date].meals[slot].push({name:f.name,qty:f.qty||null,kcal:f.kcal,p:f.p,c:f.c,f:f.f}); });
+    // remonter en tête
+    Store.set(s=>{ const it=s.foodFavorites.splice(i,1)[0]; if(it)s.foodFavorites.unshift(it); });
+    this.haptic(18); UI.toast('🍽️','Ajouté',f.name); this.renderFavTop(); this.renderNutrition();
+  },
+  removeFav(i){ Store.set(s=>s.foodFavorites.splice(i,1)); this.renderFavTop(); this.renderFavs&&this.renderFavs(); },
   renderFavs(){
     const favs=Store.get().foodFavorites; const z=document.getElementById('fav-zone');
-    if(!favs.length){ z.innerHTML=''; return; }
-    z.innerHTML='<div class="series-title">⭐ Favoris</div><div class="fav-chips">'+favs.map((f,i)=>`<button class="fav-chip" onclick="App.useFav(${i})">${f.name} <span class="k">${Math.round(f.kcal)}kcal</span></button>`).join('')+'</div>';
+    if(!z)return; if(!favs.length){ z.innerHTML=''; return; }
+    z.innerHTML='<div class="series-title">⭐ Pré-remplir depuis un favori</div><div class="fav-chips">'+favs.slice(0,12).map((f,i)=>`<button class="fav-chip" onclick="App.useFav(${i})">${f.name} <span class="k">${Math.round(f.kcal)}kcal</span></button>`).join('')+'</div>';
   },
   useFav(i){
     const f=Store.get().foodFavorites[i]; if(!f)return;
@@ -2681,8 +2710,8 @@ const App = {
   },
   toggleFav(){
     const food=this.readManual(); if(!food)return;
-    Store.set(s=>{ if(!s.foodFavorites.some(x=>x.name.toLowerCase()===food.name.toLowerCase())) s.foodFavorites.unshift(food); });
-    UI.toast('⭐','Ajouté aux favoris',food.name); this.renderFavs();
+    this.upsertFav(food);
+    UI.toast('⭐','Ajouté aux favoris',food.name); this.renderFavTop(); this.renderFavs();
   },
   readManual(){
     const name=document.getElementById('f-name').value.trim();
@@ -2693,6 +2722,7 @@ const App = {
     const item=(food&&food.name)?food:this.readManual(); if(!item)return;
     const date=new Date().toISOString().slice(0,10); const slot=this.curSlot||'midi';
     Store.set(s=>{ s.nutrition[date]=s.nutrition[date]||{meals:{matin:[],midi:[],colla:[],soir:[]}}; s.nutrition[date].meals[slot].push(item); });
+    this.upsertFav(item); // auto-favori pour ré-ajout rapide
     UI.toast('🍽️','Aliment ajouté',item.name);
     this.closeFoodSheet(); this.renderNutrition();
   },
@@ -2735,8 +2765,11 @@ const App = {
       const p=d.product, n=p.nutriments||{};
       const pname=(p.product_name||'Produit').trim(); const brand=p.brands?p.brands.split(',')[0].trim():'';
       const name=(brand && !pname.toLowerCase().includes(brand.toLowerCase()))?pname+' · '+brand:pname;
-      const prod={ name, kcal:Math.round(n['energy-kcal_100g']||0), p:+(n.proteins_100g||0), c:+(n.carbohydrates_100g||0), f:+(n.fat_100g||0) };
-      st.textContent='Produit trouvé ✓ — ajuste la quantité.';
+      // kcal : valeur directe, sinon conversion depuis kJ (OpenFoodFacts stocke souvent l'énergie en kJ)
+      let kcal=+(n['energy-kcal_100g'])||+(n['energy-kcal'])||0;
+      if(!kcal){ const kj=+(n['energy-kj_100g'])||+(n['energy_100g'])||+(n['energy-kj'])||0; if(kj)kcal=Math.round(kj/4.184); }
+      const prod={ name, kcal:Math.round(kcal), p:+(n.proteins_100g||0), c:+(n.carbohydrates_100g||0), f:+(n.fat_100g||0) };
+      st.textContent='Produit trouvé ✓ — vérifie/corrige les valeurs puis ajuste la quantité.';
       this.showProduct(prod);
     }catch(e){ st.textContent='Erreur réseau. Réessaie ou saisis manuellement.'; res.innerHTML=''; }
   },
@@ -2744,26 +2777,30 @@ const App = {
     this._prod=prod;
     document.getElementById('scan-result').innerHTML=`<div class="prod-card">
       <div class="pn">${prod.name}</div>
-      <div class="small">Valeurs pour 100 g</div>
-      <div class="macro-mini">
-        <div class="mm"><div class="v" style="color:var(--accent)">${prod.kcal}</div><div class="l">kcal</div></div>
-        <div class="mm"><div class="v" style="color:var(--accent3)">${prod.p}</div><div class="l">prot</div></div>
-        <div class="mm"><div class="v" style="color:var(--green)">${prod.c}</div><div class="l">gluc</div></div>
-        <div class="mm"><div class="v" style="color:var(--gold)">${prod.f}</div><div class="l">lip</div></div>
+      <div class="small mb">Valeurs <b>pour 100 g</b> — corrige si elles sont fausses (icône OpenFoodFacts pas toujours exacte) :</div>
+      <div class="row2">
+        <div class="field"><label>Calories /100g</label><input class="input" id="prod-kcal" type="number" inputmode="numeric" value="${prod.kcal}" oninput="App.scaleProduct()"></div>
+        <div class="field"><label>Protéines /100g</label><input class="input" id="prod-p" type="number" inputmode="decimal" value="${prod.p}" oninput="App.scaleProduct()"></div>
+        <div class="field"><label>Glucides /100g</label><input class="input" id="prod-c" type="number" inputmode="decimal" value="${prod.c}" oninput="App.scaleProduct()"></div>
+        <div class="field"><label>Lipides /100g</label><input class="input" id="prod-f" type="number" inputmode="decimal" value="${prod.f}" oninput="App.scaleProduct()"></div>
       </div>
       <div class="field"><label>Quantité consommée (g)</label><input class="input" id="prod-qty" type="number" inputmode="numeric" value="100" oninput="App.scaleProduct()"></div>
-      <div class="small mb" id="prod-scaled"></div>
-      <button class="btn block" onclick="App.addScanned()">Ajouter au journal</button>
+      <div class="result" style="margin-top:0;padding:12px"><div class="big" id="prod-scaled-kcal" style="font-size:34px">0</div><div class="lbl">kcal pour ta portion</div><div class="note" id="prod-scaled"></div></div>
+      <button class="btn block mt" onclick="App.addScanned()">Ajouter au journal</button>
     </div>`;
     this.scaleProduct();
   },
+  _prodVals(){
+    return { kcal:+document.getElementById('prod-kcal').value||0, p:+document.getElementById('prod-p').value||0, c:+document.getElementById('prod-c').value||0, f:+document.getElementById('prod-f').value||0, q:+document.getElementById('prod-qty').value||100 };
+  },
   scaleProduct(){
-    const p=this._prod; const q=+document.getElementById('prod-qty').value||100; const f=q/100;
-    document.getElementById('prod-scaled').textContent=`→ ${Math.round(p.kcal*f)} kcal · ${Math.round(p.p*f)}g P · ${Math.round(p.c*f)}g G · ${Math.round(p.f*f)}g L`;
+    const v=this._prodVals(); const f=v.q/100;
+    document.getElementById('prod-scaled-kcal').textContent=Math.round(v.kcal*f);
+    document.getElementById('prod-scaled').textContent=`${Math.round(v.p*f)}g protéines · ${Math.round(v.c*f)}g glucides · ${Math.round(v.f*f)}g lipides`;
   },
   addScanned(){
-    const p=this._prod; const q=+document.getElementById('prod-qty').value||100; const f=q/100;
-    this.confirmFood({ name:p.name, qty:q, kcal:Math.round(p.kcal*f), p:Math.round(p.p*f), c:Math.round(p.c*f), f:Math.round(p.f*f) });
+    const v=this._prodVals(); const f=v.q/100;
+    this.confirmFood({ name:this._prod.name, qty:v.q, kcal:Math.round(v.kcal*f), p:Math.round(v.p*f), c:Math.round(v.c*f), f:Math.round(v.f*f) });
   },
 
   /* ----- PHOTO IA (OpenAI Vision) ----- */
@@ -2804,6 +2841,7 @@ const App = {
     const items=this._aiItems||[]; if(!items.length){UI.toast('⚠️','Rien à ajouter');return;}
     const date=new Date().toISOString().slice(0,10); const slot=this.curSlot||'midi';
     Store.set(s=>{ s.nutrition[date]=s.nutrition[date]||{meals:{matin:[],midi:[],colla:[],soir:[]}}; items.forEach(it=>s.nutrition[date].meals[slot].push(it)); });
+    items.forEach(it=>this.upsertFav(it));
     UI.toast('🍽️',items.length+' aliment(s) ajouté(s)','Repas analysé par IA');
     this.closeFoodSheet(); this.renderNutrition();
   },
