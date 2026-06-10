@@ -901,7 +901,7 @@ img{max-width:100%}
         <button class="btn ghost block mb" onclick="App.exportData()">⬇️ Exporter mes données (JSON)</button>
         <button class="btn ghost block" onclick="App.resetData()" style="color:var(--red)">🗑️ Réinitialiser l'application</button>
       </div>
-      <p class="small mt">Loris Fitness Premium · v1.0.2 · favoris cliquables · valeurs scan corrigeables · scan auto · guide · sync cloud.</p>
+      <p class="small mt">Loris Fitness Premium · v1.0.3 · édition des aliments du journal · favoris cliquables · scan corrigeable.</p>
     </div>
   </div>
 
@@ -2651,7 +2651,7 @@ const App = {
       const items=meals[k]||[]; const kcalSum=Math.round(items.reduce((a,m)=>a+(+m.kcal||0),0));
       return `<div class="exo"><div class="exo-h" onclick="App.toggleCard(this)"><div class="exo-ic salle">${l.split(' ')[0]}</div><div class="exo-i"><div class="exo-n">${l.slice(l.indexOf(' ')+1)}</div><div class="exo-m">${items.length} aliment(s) • ${kcalSum} kcal</div></div><div class="chev">⌄</div></div>
       <div class="exo-b"><div style="padding-top:8px">
-        ${items.map((m,i)=>`<div class="srow"><div class="sdesc">${m.name}${m.qty?` <span class="small">${m.qty}g</span>`:''}</div><span class="small">${Math.round(m.kcal)}kcal · ${Math.round(m.p||0)}P ${Math.round(m.c||0)}G ${Math.round(m.f||0)}L</span><div class="scheck" onclick="App.delMeal('${k}',${i})" style="border-color:var(--red)">✕</div></div>`).join('')||'<p class="small">Aucun aliment.</p>'}
+        ${items.map((m,i)=>`<div class="srow" onclick="App.editMeal('${k}',${i})" style="cursor:pointer"><div class="sdesc">${m.name}${m.qty?` <span class="small">${m.qty}g</span>`:''} <span style="opacity:.45;font-size:11px">✏️</span></div><span class="small">${Math.round(m.kcal)}kcal · ${Math.round(m.p||0)}P ${Math.round(m.c||0)}G ${Math.round(m.f||0)}L</span><div class="scheck" onclick="event.stopPropagation();App.delMeal('${k}',${i})" style="border-color:var(--red)">✕</div></div>`).join('')||'<p class="small">Aucun aliment.</p>'}
         <button class="add-food-btn mt" onclick="App.openFoodSheet('${k}')">＋ Ajouter un aliment</button>
       </div></div></div>`;
     }).join('');
@@ -2663,7 +2663,7 @@ const App = {
 
   /* ---------- FOOD SHEET : manuel / scan code-barres / photo IA ---------- */
   openFoodSheet(slot){
-    this.curSlot=slot; this.setFoodMethod('manual');
+    this.curSlot=slot; this.editCtx=null; this.setFoodMethod('manual');
     ['f-name','f-qty','f-kcal','f-p','f-c','f-f'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
     document.getElementById('scan-result').innerHTML=''; document.getElementById('photo-result').innerHTML='';
     document.getElementById('sheet-title').textContent='Ajouter — '+({matin:'Petit-déj',midi:'Midi',colla:'Collation',soir:'Soir'}[slot]||'');
@@ -2718,9 +2718,29 @@ const App = {
     if(!name){UI.toast('⚠️','Nom requis');return null;}
     return { name, qty:+document.getElementById('f-qty').value||null, kcal:+document.getElementById('f-kcal').value||0, p:+document.getElementById('f-p').value||0, c:+document.getElementById('f-c').value||0, f:+document.getElementById('f-f').value||0 };
   },
+  editMeal(slot,i){
+    const m=(this.todayMeals()[slot]||[])[i]; if(!m)return;
+    this.openFoodSheet(slot);
+    this.editCtx={slot,i};
+    document.getElementById('f-name').value=m.name||'';
+    document.getElementById('f-qty').value=m.qty||'';
+    document.getElementById('f-kcal').value=m.kcal||0;
+    document.getElementById('f-p').value=m.p||0;
+    document.getElementById('f-c').value=m.c||0;
+    document.getElementById('f-f').value=m.f||0;
+    document.getElementById('sheet-title').textContent='Modifier l\'aliment';
+    document.getElementById('fav-top').innerHTML='';
+  },
   confirmFood(food){
     const item=(food&&food.name)?food:this.readManual(); if(!item)return;
     const date=new Date().toISOString().slice(0,10); const slot=this.curSlot||'midi';
+    if(this.editCtx){
+      const {slot:es,i}=this.editCtx;
+      Store.set(s=>{ if(s.nutrition[date]&&s.nutrition[date].meals[es]&&s.nutrition[date].meals[es][i]) s.nutrition[date].meals[es][i]=item; });
+      this.editCtx=null; this.upsertFav(item);
+      UI.toast('✏️','Aliment modifié',item.name);
+      this.closeFoodSheet(); this.renderNutrition(); return;
+    }
     Store.set(s=>{ s.nutrition[date]=s.nutrition[date]||{meals:{matin:[],midi:[],colla:[],soir:[]}}; s.nutrition[date].meals[slot].push(item); });
     this.upsertFav(item); // auto-favori pour ré-ajout rapide
     UI.toast('🍽️','Aliment ajouté',item.name);
