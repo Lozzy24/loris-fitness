@@ -24,8 +24,10 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Configurer Pages
+      - name: Configurer Pages (active Pages automatiquement)
         uses: actions/configure-pages@v5
+        with:
+          enablement: true
       - name: Uploader le site (racine)
         uses: actions/upload-pages-artifact@v3
         with:
