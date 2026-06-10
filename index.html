@@ -773,6 +773,10 @@ img{max-width:100%}
     <div class="section-label"><span class="dot orange"></span>Macros du jour<span class="lbl-line"></span></div>
     <div class="card pad mb" id="macro-card"></div>
 
+    <div class="section-label"><span class="dot"></span>Respect des objectifs — 7 jours<span class="lbl-line"></span></div>
+    <div class="chart-box"><h4>Calories / jour vs objectif</h4><canvas id="chart-nutri"></canvas></div>
+    <div class="stat-grid three mb" id="nutri-streak"></div>
+
     <div class="section-label"><span class="dot blue"></span>Journal — <span id="nutri-date"></span><span class="lbl-line"></span></div>
     <div id="meals"></div>
   </div>
@@ -902,7 +906,7 @@ img{max-width:100%}
         <label class="btn ghost block mb fab-add" style="margin-bottom:12px"><input type="file" accept="application/json,.json" hidden onchange="App.importData(event)">⬆️ Importer des données (JSON)</label>
         <button class="btn ghost block" onclick="App.resetData()" style="color:var(--red)">🗑️ Réinitialiser l'application</button>
       </div>
-      <p class="small mt">Loris Fitness Premium · v1.0.5 · import/export JSON (sauvegarde manuelle) · sync cloud · MAJ auto.</p>
+      <p class="small mt">Loris Fitness Premium · v1.1.0 · jours de séance éditables (tap) · courbe respect nutrition · import/export.</p>
     </div>
   </div>
 
@@ -946,6 +950,15 @@ img{max-width:100%}
     </div>
     <button class="btn block" onclick="App.saveOnboarding()">C'est parti 🚀</button>
     <button class="btn ghost block mt" onclick="App.skipOnboarding()">Passer pour l'instant</button>
+  </div>
+</div>
+
+<!-- DAY PICKER (modifier la séance d'un jour) -->
+<div id="dayPicker" class="sheet-back">
+  <div class="sheet">
+    <div class="sheet-head"><div class="sheet-title" id="dp-title">Jour</div><button onclick="App.closeDayPicker()">✕</button></div>
+    <p class="small mb">Choisis la séance de ce jour. Pour déplacer un entraînement (ex. lundi → mardi) : mets <b>Repos</b> sur lundi et la séance sur mardi.</p>
+    <div id="dp-options"></div>
   </div>
 </div>
 
@@ -1579,10 +1592,27 @@ const App = {
     const wk=this.weekKeys();
     document.getElementById('week-strip').innerHTML=letters.map((l,i)=>{
       const d=map[plan[i]]||map.rest; const done=s.weekDone[wk[i]]?'done':'';
-      return `<div class="day ${d.t} ${i===today?'today':''} ${done}"><div class="dl">${l}</div><div>${d.n}</div></div>`;
+      return `<div class="day ${d.t} ${i===today?'today':''} ${done}" style="cursor:pointer" onclick="App.openDayPicker(${i})"><div class="dl">${l}</div><div>${d.n}</div></div>`;
     }).join('');
   },
   weekKeys(){ const now=new Date(); const mon=new Date(now); mon.setDate(now.getDate()-((now.getDay()+6)%7)); return [...Array(7)].map((_,i)=>{const d=new Date(mon);d.setDate(mon.getDate()+i);return d.toISOString().slice(0,10);}); },
+  openDayPicker(i){
+    this.dpDay=i;
+    const days=['Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi','Dimanche'];
+    document.getElementById('dp-title').textContent=days[i];
+    const cur=(Store.get().weekPlan||[])[i]||'rest';
+    const opts=[['rest','😴 Repos'],['pecs','💪 Pectoraux'],['dos','🏋️ Dorsaux'],['epaules','🦾 Épaules'],['jambes','🦵 Jambes'],['maisonA','🏠 Maison A'],['maisonB','🏠 Maison B'],['maisonC','🏠 Maison C']];
+    document.getElementById('dp-options').innerHTML=opts.map(([v,l])=>`<button class="btn ${v===cur?'':'ghost'} block mb" onclick="App.setDayGroup(${i},'${v}')">${l}${v===cur?' ✓':''}</button>`).join('');
+    document.getElementById('dayPicker').classList.add('show');
+  },
+  closeDayPicker(){ document.getElementById('dayPicker').classList.remove('show'); },
+  setDayGroup(i,gid){
+    Store.set(s=>{ s.weekPlan=s.weekPlan||['pecs','rest','dos','rest','epaules','jambes','rest']; s.weekPlan[i]=gid; });
+    this.haptic(18); this.buildWeek(); this.renderToday(); this.renderWeekPlanEditor&&this.renderWeekPlanEditor();
+    this.closeDayPicker();
+    const days=['lundi','mardi','mercredi','jeudi','vendredi','samedi','dimanche'];
+    UI.toast('📅','Planning mis à jour',days[i]);
+  },
 
   /* ---------- DASHBOARD ---------- */
   renderDash(){
@@ -2656,6 +2686,31 @@ const App = {
         <button class="add-food-btn mt" onclick="App.openFoodSheet('${k}')">＋ Ajouter un aliment</button>
       </div></div></div>`;
     }).join('');
+    this.renderNutriChart();
+  },
+  renderNutriChart(){
+    if(typeof Chart==='undefined'){return setTimeout(()=>this.renderNutriChart(),400);}
+    const ctx=document.getElementById('chart-nutri'); if(!ctx)return;
+    const s=Store.get(); const t=this.nutTargets(); const target=t.cal;
+    const today=new Date(); const days=[];
+    for(let i=6;i>=0;i--){ const d=new Date(today); d.setDate(today.getDate()-i); const iso=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); days.push({iso,label:d.toLocaleDateString('fr-FR',{weekday:'short'})}); }
+    const consumed=days.map(d=>{ const day=s.nutrition[d.iso]; if(!day)return 0; return Math.round(Object.values(day.meals).flat().reduce((a,m)=>a+(+m.kcal||0),0)); });
+    const colors=consumed.map(v=> v===0?'#33333d' : (v<target-250?'#ff4d5e' : (v>target+350?'#ffd24d' : '#3ddc84')));
+    if(this.charts['chart-nutri'])this.charts['chart-nutri'].destroy();
+    this.charts['chart-nutri']=new Chart(ctx,{type:'bar',data:{labels:days.map(d=>d.label),datasets:[
+      {label:'Consommé',data:consumed,backgroundColor:colors,borderRadius:6,order:2},
+      {label:'Objectif',type:'line',data:days.map(()=>target),borderColor:'#e8ff3c',borderDash:[5,4],pointRadius:0,borderWidth:2,order:1}
+    ]},options:{responsive:true,plugins:{legend:{display:false},tooltip:{callbacks:{label:(c)=>c.dataset.label+': '+c.raw+' kcal'}}},scales:{x:{grid:{display:false},ticks:{color:'#888',font:{size:10}}},y:{grid:{color:'#1c1c22'},ticks:{color:'#666',font:{size:10}}}}}});
+    const logged=consumed.filter(v=>v>0);
+    const onTarget=consumed.filter(v=>v>=target-250 && v<=target+350).length;
+    const avg=logged.length?Math.round(logged.reduce((a,b)=>a+b,0)/logged.length):0;
+    let pSum=0,pDays=0; days.forEach(d=>{const day=s.nutrition[d.iso]; if(day){const cP=Object.values(day.meals).flat().reduce((a,m)=>a+(+m.p||0),0); if(cP>0){pSum+=Math.min(150,cP/(t.prot||1)*100);pDays++;}}});
+    const avgP=pDays?Math.round(pSum/pDays):0;
+    const el=document.getElementById('nutri-streak'); if(el){ el.innerHTML=[
+      this.statCard({num:onTarget,suffix:'/7',l:'Jours OK',c:'grn'}),
+      this.statCard({num:avg,l:'Kcal moy/j',c:'acc'}),
+      this.statCard({num:avgP,suffix:'%',l:'Prot. moy',c:'blu'}),
+    ].join(''); this.animateCounts(el); }
   },
   delMeal(slot,i){
     const date=new Date().toISOString().slice(0,10);
