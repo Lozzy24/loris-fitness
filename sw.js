@@ -1,7 +1,7 @@
 /* Loris Fitness — Service Worker
    Stratégie : network-first pour la page (toujours la dernière version en ligne),
    cache-first pour les librairies/assets (rapide + offline). */
-const CACHE = 'lorisfit-v23';
+const CACHE = 'lorisfit-v24';
 const ASSETS = [
   './',
   './index.html',
