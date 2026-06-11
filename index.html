@@ -18,9 +18,9 @@
 
 <!-- Libs (charts + 3D + barcode) — vendored locally for full offline support -->
 <script defer src="vendor/chart.umd.min.js"></script>
-<script defer src="vendor/three.min.js"></script>
 <script defer src="vendor/html5-qrcode.min.js"></script>
 <script defer src="vendor/supabase.min.js"></script>
+<script defer src="vendor/bodydata.js"></script>
 
 <style>
 /* ============================================================
@@ -381,6 +381,17 @@ img{max-width:100%}
 .mlegend .p{background:var(--accent)} .exo.maison-x .mlegend .p{background:var(--accent2)}
 .mlegend .s{background:#8a7d2a} .exo.maison-x .mlegend .s{background:#8a4a22}
 
+/* CORPS ANATOMIQUE RÉALISTE (SVG) */
+.anatomy-svg{width:100%;max-height:360px;display:block;margin:0 auto}
+.bm{stroke:#0a0a0c;stroke-width:1.1;transition:fill .35s ease, filter .35s ease}
+.bm.bm-base{fill:#212128}
+.bm.bm-mus{fill:#393943}
+.bm.bm-sec{fill:#8a7d2a}
+.bm.bm-act{fill:#e8ff3c;filter:drop-shadow(0 0 5px rgba(232,255,60,.55))}
+.exo.maison-x .bm.bm-act{fill:#ff5c1a;filter:drop-shadow(0 0 5px rgba(255,92,26,.55))}
+.exo.maison-x .bm.bm-sec{fill:#8a4a22}
+.anatomy-loading{text-align:center;padding:40px 16px;color:var(--muted);font-size:13px}
+
 /* finish workout bar */
 .finish-bar{position:sticky;bottom:calc(96px + var(--safe-b));z-index:30;margin:14px 0 0}
 .finish-bar .card{display:flex;align-items:center;gap:12px;padding:12px 14px}
@@ -643,13 +654,13 @@ img{max-width:100%}
     <div class="section-label"><span class="dot"></span>Coach — bilan de la semaine<span class="lbl-line"></span></div>
     <div id="coach-insight"></div>
 
-    <div class="section-label"><span class="dot blue"></span>Visualiseur musculaire 3D<span class="lbl-line"></span></div>
+    <div class="section-label"><span class="dot blue"></span>Visualiseur musculaire<span class="lbl-line"></span></div>
     <div class="card pad">
-      <div id="body3d"></div>
-      <div class="field mt" style="margin-bottom:10px"><label>Voir un exercice en 3D</label><select class="input" id="body-exo-select" onchange="App.showExo3D(this.value)"></select></div>
+      <div id="anatomy-body"><div class="anatomy-loading">Chargement de l'anatomie…</div></div>
+      <div class="field mt" style="margin-bottom:10px"><label>Voir un exercice</label><select class="input" id="body-exo-select" onchange="App.showExo3D(this.value)"></select></div>
       <div class="small mb" id="body3d-label" style="text-align:center"></div>
       <div class="chips" id="muscle-chips" style="margin-bottom:0"></div>
-      <p class="small mt">Choisis un exercice → ses muscles s'allument (principaux vifs, secondaires atténués). Glisse pour faire pivoter le corps.</p>
+      <p class="small mt">Choisis un exercice → ses muscles s'allument (avant à gauche, arrière à droite). Principaux en vif, secondaires atténués.</p>
     </div>
 
     <div class="section-label"><span class="dot"></span>Records personnels<span class="lbl-line"></span></div>
@@ -906,7 +917,7 @@ img{max-width:100%}
         <label class="btn ghost block mb fab-add" style="margin-bottom:12px"><input type="file" accept="application/json,.json" hidden onchange="App.importData(event)">⬆️ Importer des données (JSON)</label>
         <button class="btn ghost block" onclick="App.resetData()" style="color:var(--red)">🗑️ Réinitialiser l'application</button>
       </div>
-      <p class="small mt">Loris Fitness Premium · v1.1.0 · jours de séance éditables (tap) · courbe respect nutrition · import/export.</p>
+      <p class="small mt">Loris Fitness Premium · v1.2.0 · corps anatomique réaliste (avant/arrière) · jours éditables · courbe nutrition.</p>
     </div>
   </div>
 
@@ -1866,94 +1877,53 @@ const App = {
   buildMuscleChips(){
     document.getElementById('muscle-chips').innerHTML=MUSCLES_3D.map((m,i)=>`<button class="chip${i===0?' active':''}" onclick="App.highlightMuscle('${m}',this)">${m}</button>`).join('');
   },
+  /* ---------- CORPS ANATOMIQUE RÉALISTE (SVG) ---------- */
   init3D(){
-    const tryInit=()=>{
-      if(typeof THREE==='undefined'){ return setTimeout(tryInit,400); }
-      const cont=document.getElementById('body3d'); if(!cont||this.body3d) return;
-      const W=cont.clientWidth,H=cont.clientHeight;
-      const scene=new THREE.Scene();
-      const cam=new THREE.PerspectiveCamera(45,W/H,.1,100); cam.position.set(0,1,5.2);
-      const rend=new THREE.WebGLRenderer({antialias:true,alpha:true}); rend.setSize(W,H); rend.setPixelRatio(Math.min(2,devicePixelRatio));
-      cont.appendChild(rend.domElement);
-      scene.add(new THREE.AmbientLight(0xffffff,.55));
-      const key=new THREE.DirectionalLight(0xe8ff3c,1.1); key.position.set(2,4,3); scene.add(key);
-      const rim=new THREE.DirectionalLight(0xff5c1a,.6); rim.position.set(-3,1,-2); scene.add(rim);
-      // simple humanoid from primitives, each part tagged by muscle
-      const grp=new THREE.Group(); const parts={};
-      const mat=()=>new THREE.MeshStandardMaterial({color:0x3a3a44,roughness:.6,metalness:.1});
-      const add=(geo,x,y,z,muscle,sx,sy,sz)=>{const m=new THREE.Mesh(geo,mat());m.position.set(x,y,z);if(sx)m.scale.set(sx,sy,sz);m.userData.muscle=muscle;grp.add(m);(parts[muscle]=parts[muscle]||[]).push(m);return m;};
-      add(new THREE.SphereGeometry(.34,24,24),0,2.05,0,'head');
-      add(new THREE.CylinderGeometry(.16,.2,.3,16),0,1.72,0,'Deltoïdes');
-      add(new THREE.BoxGeometry(.9,.7,.42),0,1.25,0,'Pectoraux'); // torso front
-      add(new THREE.BoxGeometry(.88,.7,.3),0,1.25,-.12,'Grand dorsal');
-      add(new THREE.BoxGeometry(.78,.5,.4),0,.78,0,'Abdominaux');
-      // shoulders
-      add(new THREE.SphereGeometry(.2,16,16),-.56,1.55,0,'Deltoïdes');
-      add(new THREE.SphereGeometry(.2,16,16),.56,1.55,0,'Deltoïdes');
-      // upper arms (biceps/triceps)
-      add(new THREE.CylinderGeometry(.13,.12,.6,14),-.62,1.15,.05,'Biceps');
-      add(new THREE.CylinderGeometry(.13,.12,.6,14),.62,1.15,.05,'Biceps');
-      add(new THREE.CylinderGeometry(.12,.11,.55,14),-.62,1.15,-.1,'Triceps');
-      add(new THREE.CylinderGeometry(.12,.11,.55,14),.62,1.15,-.1,'Triceps');
-      // forearms
-      add(new THREE.CylinderGeometry(.1,.09,.55,12),-.66,.55,.05,'forearm');
-      add(new THREE.CylinderGeometry(.1,.09,.55,12),.66,.55,.05,'forearm');
-      // glutes
-      add(new THREE.BoxGeometry(.7,.35,.42),0,.45,-.05,'Fessiers');
-      // thighs (quads front / ischio back)
-      add(new THREE.CylinderGeometry(.17,.14,.8,16),-.22,-.05,.06,'Quadriceps');
-      add(new THREE.CylinderGeometry(.17,.14,.8,16),.22,-.05,.06,'Quadriceps');
-      add(new THREE.CylinderGeometry(.16,.13,.78,16),-.22,-.05,-.08,'Ischio-jambiers');
-      add(new THREE.CylinderGeometry(.16,.13,.78,16),.22,-.05,-.08,'Ischio-jambiers');
-      // calves
-      add(new THREE.CylinderGeometry(.13,.1,.7,14),-.22,-.85,0,'calf');
-      add(new THREE.CylinderGeometry(.13,.1,.7,14),.22,-.85,0,'calf');
-      grp.position.y=-.3; scene.add(grp);
-      this.body3d={scene,cam,rend,grp,parts,rotV:.004,drag:false,px:0};
-      // drag rotate
-      const dom=rend.domElement;
-      const down=e=>{this.body3d.drag=true;this.body3d.px=(e.touches?e.touches[0].clientX:e.clientX);};
-      const move=e=>{if(!this.body3d.drag)return;const x=(e.touches?e.touches[0].clientX:e.clientX);grp.rotation.y+=(x-this.body3d.px)*.01;this.body3d.px=x;};
-      const up=()=>this.body3d.drag=false;
-      dom.addEventListener('mousedown',down);dom.addEventListener('mousemove',move);window.addEventListener('mouseup',up);
-      dom.addEventListener('touchstart',down,{passive:true});dom.addEventListener('touchmove',move,{passive:true});dom.addEventListener('touchend',up);
-      const anim=()=>{requestAnimationFrame(anim);if(!this.body3d.drag)grp.rotation.y+=this.body3d.rotV;rend.render(scene,cam);};
-      anim();
-      this.highlightMuscle('Pectoraux');
-      window.addEventListener('resize',()=>{const w=cont.clientWidth,h=cont.clientHeight;cam.aspect=w/h;cam.updateProjectionMatrix();rend.setSize(w,h);});
-    };
-    tryInit();
+    const tryRender=()=>{ if(!window.BODY_FRONT){ return setTimeout(tryRender,300); } this.renderAnatomy(new Set(['chest']), new Set()); };
+    tryRender();
+  },
+  nameToSlug(raw){
+    const m=(raw||'').toLowerCase();
+    if(/pector/.test(m))return 'chest';
+    if(/deltoïde|deltoide|épaule|epaule/.test(m))return 'deltoids';
+    if(/triceps/.test(m))return 'triceps';
+    if(/biceps|brachial/.test(m))return 'biceps';
+    if(/dorsal|grand dos/.test(m))return 'upper-back';
+    if(/trapèze|trapeze|rhombo/.test(m))return 'trapezius';
+    if(/abdo|gainage/.test(m))return 'abs';
+    if(/oblique/.test(m))return 'obliques';
+    if(/quadri/.test(m))return 'quadriceps';
+    if(/ischio/.test(m))return 'hamstring';
+    if(/fessier|glut/.test(m))return 'gluteal';
+    if(/adduct/.test(m))return 'adductors';
+    if(/mollet|calf|jumeau|soléaire|soleaire/.test(m))return 'calves';
+    if(/lombaire/.test(m))return 'lower-back';
+    if(/avant-bras|avant bras/.test(m))return 'forearm';
+    return null;
+  },
+  musclesToSlugs(list){ const s=new Set(); (list||[]).forEach(x=>{const sl=this.nameToSlug(x); if(sl)s.add(sl);}); return s; },
+  anatomyBodySVG(active,sec){
+    if(!window.BODY_FRONT||!window.BODY_BACK){ return '<div class="anatomy-loading">Chargement de l\'anatomie…</div>'; }
+    const MUS=new Set(['chest','deltoids','biceps','triceps','abs','obliques','quadriceps','hamstring','gluteal','calves','trapezius','upper-back','lower-back','forearm','adductors','tibialis']);
+    const draw=(list)=>{ let out=''; (list||[]).forEach(m=>{
+      let ds=[]; const pp=m.path;
+      if(Array.isArray(pp)) ds=pp;
+      else if(pp&&typeof pp==='object'){ Object.keys(pp).forEach(k=>{ if(Array.isArray(pp[k])) ds=ds.concat(pp[k]); }); }
+      const cls = active.has(m.slug)?'bm-act' : (sec.has(m.slug)?'bm-sec' : (MUS.has(m.slug)?'bm-mus':'bm-base'));
+      ds.forEach(d=> out+='<path d="'+d+'" class="bm '+cls+'"/>');
+    }); return out; };
+    return '<svg viewBox="0 0 1448 1448" class="anatomy-svg" preserveAspectRatio="xMidYMid meet">'+draw(window.BODY_FRONT)+draw(window.BODY_BACK)+'</svg>'+
+      '<div class="mlegend" style="margin-top:6px"><span><i class="p"></i>Principal</span><span><i class="s"></i>Secondaire</span></div>';
+  },
+  renderAnatomy(active,sec,host){
+    host = host || document.getElementById('anatomy-body'); if(!host) return;
+    host.innerHTML = this.anatomyBodySVG(active||new Set(), sec||new Set());
   },
   highlightMuscle(muscle,btn){
     if(btn){document.querySelectorAll('#muscle-chips .chip').forEach(c=>c.classList.remove('active'));btn.classList.add('active');}
-    document.getElementById('body3d-label').textContent='';
-    this.highlightMuscles(new Set([muscle]), new Set());
-  },
-  highlightMuscles(prim,sec){
-    if(!this.body3d)return;
-    const {parts}=this.body3d;
-    Object.entries(parts).forEach(([m,meshes])=>{
-      const isP=prim.has(m), isS=!isP&&sec.has(m);
-      meshes.forEach(mesh=>{
-        mesh.material.color.set(isP?0xe8ff3c:(isS?0x6d6a1f:0x3a3a44));
-        mesh.material.emissive.set(isP?0x4a5a10:(isS?0x1a1a08:0x000000));
-      });
-    });
-  },
-  map3D(list){
-    const set=new Set();
-    (list||[]).forEach(raw=>{ const m=(raw||'').toLowerCase();
-      if(/pector/.test(m))set.add('Pectoraux');
-      if(/deltoïde|deltoide|épaule|epaule/.test(m))set.add('Deltoïdes');
-      if(/biceps|brachial/.test(m))set.add('Biceps');
-      if(/triceps/.test(m))set.add('Triceps');
-      if(/dorsal|trapèze|trapeze|rhombo/.test(m))set.add('Grand dorsal');
-      if(/abdo|gainage|oblique|lombaire/.test(m))set.add('Abdominaux');
-      if(/quadri/.test(m))set.add('Quadriceps');
-      if(/ischio/.test(m))set.add('Ischio-jambiers');
-      if(/fessier|glut|adduct/.test(m))set.add('Fessiers');
-    });
-    return set;
+    const lbl=document.getElementById('body3d-label'); if(lbl)lbl.textContent='';
+    const slug=this.nameToSlug(muscle);
+    this.renderAnatomy(new Set(slug?[slug]:[]), new Set());
   },
   buildBodyExoSelect(){
     const sel=document.getElementById('body-exo-select'); if(!sel)return;
@@ -1964,16 +1934,16 @@ const App = {
     document.querySelector('.nav-i[data-page="home"]').click();
     const sel=document.getElementById('body-exo-select'); if(sel)sel.value=id;
     this.showExo3D(id);
-    setTimeout(()=>{ const b=document.getElementById('body3d'); if(b)b.scrollIntoView({behavior:'smooth',block:'center'}); },200);
+    setTimeout(()=>{ const b=document.getElementById('anatomy-body'); if(b)b.scrollIntoView({behavior:'smooth',block:'center'}); },200);
   },
   showExo3D(id){
-    if(!id){ this.highlightMuscle('Pectoraux'); document.getElementById('body3d-label').textContent=''; return; }
+    if(!id){ this.highlightMuscle('Pectoraux'); const l=document.getElementById('body3d-label'); if(l)l.textContent=''; return; }
     const e=this.exo(id); if(!e||!e.fiche)return;
-    const prim=this.map3D(e.fiche.primary), sec=this.map3D(e.fiche.secondary);
+    const prim=this.musclesToSlugs(e.fiche.primary), sec=this.musclesToSlugs(e.fiche.secondary);
     document.querySelectorAll('#muscle-chips .chip').forEach(c=>c.classList.remove('active'));
-    this.highlightMuscles(prim,sec);
-    const names=[...prim].join(', ');
-    document.getElementById('body3d-label').innerHTML=`<b style="color:var(--accent)">${e.name.replace(/^\d+\.\s*/,'')}</b> → ${names||'—'}`;
+    this.renderAnatomy(prim,sec);
+    const names=(e.fiche.primary||[]).join(', ');
+    const lbl=document.getElementById('body3d-label'); if(lbl)lbl.innerHTML=`<b style="color:var(--accent)">${e.name.replace(/^\d+\.\s*/,'')}</b> → ${names||'—'}`;
     this.haptic(12);
   },
 
